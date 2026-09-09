@@ -1,0 +1,14 @@
+bin/
+obj/
+.vs/
+.idea/
+*.user
+*.userosscache
+*.sln.docstates
+*.suo
+*.userprefs
+.DS_Store
+*.DotSettings.user
+publish/
+artifacts/
+tools/

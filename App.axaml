@@ -1,0 +1,165 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="FetchIt.App"
+             RequestedThemeVariant="Dark">
+
+    <Application.Resources>
+        <ResourceDictionary>
+            <FontFamily x:Key="Plex">avares://FetchIt/Assets/Fonts/IBMPlexSans-Regular.ttf#IBM Plex Sans, avares://FetchIt/Assets/Fonts/IBMPlexSans-Medium.ttf#IBM Plex Sans</FontFamily>
+            <Color x:Key="Ink">#000000</Color>
+            <Color x:Key="Paper">#FFFFFF</Color>
+            <SolidColorBrush x:Key="InkBrush" Color="{StaticResource Ink}" />
+            <SolidColorBrush x:Key="PaperBrush" Color="{StaticResource Paper}" />
+        </ResourceDictionary>
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme />
+
+        <Style Selector="Window">
+            <Setter Property="FontFamily" Value="{StaticResource Plex}" />
+            <Setter Property="Foreground" Value="{StaticResource PaperBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+
+        <Style Selector="TextBlock.eyebrow">
+            <Setter Property="FontFamily" Value="{StaticResource Plex}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="LetterSpacing" Value="2.4" />
+            <Setter Property="Foreground" Value="{StaticResource PaperBrush}" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="TextAlignment" Value="Center" />
+        </Style>
+
+        <Style Selector="TextBox">
+            <Setter Property="Background" Value="#000000" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="CaretBrush" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="#FFFFFF" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Padding" Value="10,9" />
+            <Setter Property="FontFamily" Value="{StaticResource Plex}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="SelectionBrush" Value="#FFFFFF" />
+            <Setter Property="SelectionForegroundBrush" Value="#000000" />
+        </Style>
+        <Style Selector="TextBox /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="#000000" />
+            <Setter Property="BorderBrush" Value="#FFFFFF" />
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+            <Setter Property="BorderBrush" Value="#FFFFFF" />
+            <Setter Property="Background" Value="#000000" />
+        </Style>
+        <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement">
+            <Setter Property="BorderBrush" Value="#FFFFFF" />
+            <Setter Property="Background" Value="#000000" />
+        </Style>
+
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="Foreground" Value="#000000" />
+            <Setter Property="BorderBrush" Value="#FFFFFF" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="16,13" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FontFamily" Value="{StaticResource Plex}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style Selector="Button.primary /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="Foreground" Value="#000000" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#000000" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="#FFFFFF" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Button.primary:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="Foreground" Value="#000000" />
+        </Style>
+        <Style Selector="Button.primary:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="#FFFFFF" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+
+        <Style Selector="Button.cycle">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0,6" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="FontFamily" Value="{StaticResource Plex}" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style Selector="Button.cycle /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.cycle:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+        </Style>
+
+        <Style Selector="Button.caption">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.caption /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.caption:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#FFFFFF" />
+        </Style>
+        <Style Selector="Button.caption:pointerover Path, Button.caption:pointerover Rectangle">
+            <Setter Property="Fill" Value="#000000" />
+            <Setter Property="Stroke" Value="#000000" />
+        </Style>
+
+        <Style Selector="ProgressBar">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="#FFFFFF" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Height" Value="8" />
+            <Setter Property="Minimum" Value="0" />
+            <Setter Property="Maximum" Value="100" />
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style Selector="ProgressBar /template/ Border#PART_RootBorder">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="#FFFFFF" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style Selector="ProgressBar /template/ Border#PART_Indicator">
+            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+    </Application.Styles>
+</Application>

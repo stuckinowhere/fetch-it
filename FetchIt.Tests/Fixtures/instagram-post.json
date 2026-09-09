@@ -1,0 +1,5 @@
+[
+  ["https://example.com/1.jpg", {"category":"instagram","title":"carousel","filename":"1","extension":"jpg"}],
+  ["https://example.com/2.jpg", {"category":"instagram","title":"carousel","filename":"2","extension":"jpg"}],
+  ["https://example.com/3.mp4", {"category":"instagram","title":"carousel","filename":"3","extension":"mp4"}]
+]

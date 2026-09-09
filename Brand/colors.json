@@ -1,0 +1,15 @@
+{
+  "name": "WASD",
+  "source": "black / white",
+  "colors": {
+    "ink": "#000000",
+    "paper": "#FFFFFF"
+  },
+  "roles": {
+    "background": "ink",
+    "surface": "ink",
+    "border": "paper",
+    "accent": "paper",
+    "text": "paper"
+  }
+}
