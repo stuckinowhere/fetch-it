@@ -1,0 +1,172 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:FetchIt.ViewModels"
+        xmlns:controls="using:FetchIt.Controls"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        d:DesignWidth="440" d:DesignHeight="640"
+        x:Class="FetchIt.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Icon="/Assets/fetchit.png"
+        Title="fetch it"
+        Width="440"
+        Height="640"
+        CanResize="False"
+        SystemDecorations="None"
+        WindowStartupLocation="CenterScreen"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        TransparencyBackgroundFallback="#000000"
+        ShowInTaskbar="True">
+
+    <Design.DataContext>
+        <vm:MainViewModel />
+    </Design.DataContext>
+
+    <controls:CutCornerFrame x:Name="Shell"
+                             CutSize="22"
+                             StrokeThickness="1.4"
+                             Stroke="#FFFFFF"
+                             Fill="#000000"
+                             PointerPressed="OnChromePointerPressed">
+        <controls:CutCornerFrame Margin="9"
+                                 CutSize="13"
+                                 StrokeThickness="0.7"
+                                 Stroke="#FFFFFF"
+                                 Fill="#000000"
+                                 ShowCornerMarks="False">
+            <Grid RowDefinitions="Auto,*" Margin="18,16,18,20">
+                <Grid Grid.Row="0" Background="Transparent" PointerPressed="OnChromePointerPressed">
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="10"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Margin="0,0,56,0">
+                        <controls:WasdMark Width="26"
+                                           Height="26"
+                                           VerticalAlignment="Center"
+                                           HexFill="#000000"
+                                           Accent="#FFFFFF"
+                                           KeyFill="#000000" />
+                        <TextBlock Text="fetch it"
+                                   FontFamily="{StaticResource Plex}"
+                                   FontSize="14"
+                                   LetterSpacing="1.2"
+                                   Foreground="#FFFFFF"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Spacing="2"
+                                Margin="0,0,6,0">
+                        <Button Classes="caption" Click="OnMinimizeClick">
+                            <Rectangle Width="11"
+                                       Height="1.4"
+                                       Fill="#FFFFFF"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Button>
+                        <Button Classes="caption" Click="OnCloseClick">
+                            <Path Stroke="#FFFFFF"
+                                  StrokeThickness="1.4"
+                                  StrokeLineCap="Round"
+                                  Width="11"
+                                  Height="11"
+                                  Stretch="None"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                  Data="M 1,1 L 10,10 M 10,1 L 1,10" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <Grid Grid.Row="1"
+                      RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto,Auto"
+                      Margin="6,22,6,0">
+
+                    <TextBlock Grid.Row="0" Classes="eyebrow" Text="LINK" />
+                    <TextBox Grid.Row="1"
+                             Margin="0,8,0,0"
+                             Watermark="https://"
+                             Text="{Binding Url}" />
+
+                    <StackPanel Grid.Row="2"
+                                Margin="0,16,0,0"
+                                IsVisible="{Binding HasResult}"
+                                Spacing="4">
+                        <TextBlock Text="{Binding Title}"
+                                   FontFamily="{StaticResource Plex}"
+                                   FontSize="15"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   Foreground="#FFFFFF" />
+                        <TextBlock Text="{Binding Summary}"
+                                   FontFamily="{StaticResource Plex}"
+                                   FontSize="12"
+                                   TextAlignment="Center"
+                                   Foreground="#FFFFFF"
+                                   Opacity="1" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="3"
+                                Margin="0,22,0,0"
+                                IsVisible="{Binding ShowVideo}">
+                        <TextBlock Classes="eyebrow" Text="VIDEO" />
+                        <Button Classes="cycle"
+                                Content="{Binding QualityLabel}"
+                                Command="{Binding CycleQualityCommand}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="4" Margin="0,18,0,0">
+                        <TextBlock Classes="eyebrow" Text="FOLDER" />
+                        <Button Classes="cycle"
+                                Content="{Binding FolderLabel}"
+                                Command="{Binding PickFolderCommand}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="5"
+                                Margin="0,18,0,0"
+                                IsVisible="{Binding ShowLogin}">
+                        <TextBlock Classes="eyebrow" Text="LOGIN" />
+                        <Button Classes="cycle"
+                                Content="{Binding LoginLabel}"
+                                Command="{Binding ToggleLoginCommand}" />
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="6"
+                               Margin="0,16,0,0"
+                               Text="{Binding Error}"
+                               IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                               FontFamily="{StaticResource Plex}"
+                               FontSize="12"
+                               TextAlignment="Center"
+                               TextWrapping="Wrap"
+                               Foreground="#FFFFFF" />
+
+                    <Button Grid.Row="8"
+                            Classes="primary"
+                            VerticalAlignment="Bottom"
+                            Margin="0,12,0,0"
+                            Content="{Binding ActionLabel}"
+                            Command="{Binding FetchOrStopCommand}" />
+
+                    <StackPanel Grid.Row="9"
+                                Margin="0,12,0,0"
+                                IsVisible="{Binding ShowProgress}"
+                                Spacing="6">
+                        <ProgressBar Value="{Binding Progress}" />
+                        <TextBlock Text="{Binding ProgressText}"
+                                   FontFamily="{StaticResource Plex}"
+                                   FontSize="11"
+                                   LetterSpacing="1.2"
+                                   HorizontalAlignment="Center"
+                                   Foreground="#FFFFFF" />
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </controls:CutCornerFrame>
+    </controls:CutCornerFrame>
+</Window>
