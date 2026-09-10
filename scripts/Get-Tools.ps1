@@ -9,7 +9,7 @@ $ErrorActionPreference = "Stop"
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
 $YtDlpUrl = "https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp.exe"
-$YtDlpSha = "66674953fe251b89f4d08c5d0e35e0728679bd67ab3d7d05c0562af101dd3e7a"
+$YtDlpSha = "66674953fe251b89f4d08c5f0e35e0728679bd67ab3d7d05c0562af101dd3e7a"
 $FfmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-09-14-51/ffmpeg-N-126482-g903325e279-win64-gpl.zip"
 $FfmpegSha = "6c60a0c17a02eab0ead59c4597e58268fa024b45ff08cd27b6d6be8e50fd2588"
 $WheelUrl = "https://files.pythonhosted.org/packages/d6/6b/ac77fe9f7c050ca04de17174f5fc384ae104b009424b147089f0a8037272/gallery_dl-1.32.11-py3-none-any.whl"
@@ -30,8 +30,10 @@ function Get-Verified([string] $Url, [string] $Dest, [string] $Sha) {
     $tmp = "$Dest.part"
     Invoke-WebRequest -Uri $Url -OutFile $tmp -UseBasicParsing
     if (-not (Test-Sha256 $tmp $Sha)) {
+        $actual = (Get-FileHash -Algorithm SHA256 -Path $tmp).Hash.ToLowerInvariant()
+        $size = (Get-Item $tmp).Length
         Remove-Item $tmp -Force -ErrorAction SilentlyContinue
-        throw "Hash mismatch for $(Split-Path $Dest -Leaf)"
+        throw "Hash mismatch for $(Split-Path $Dest -Leaf) ($size bytes). expected=$Sha actual=$actual"
     }
     Move-Item $tmp $Dest -Force
 }
