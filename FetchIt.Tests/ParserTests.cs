@@ -90,6 +90,38 @@ public class ParserTests
     }
 
     [Fact]
+    public void GalleryDl_parses_x_photo_gallery()
+    {
+        var probe = GalleryDlParser.Parse(Fixture("twitter-gallery.json"));
+        Assert.Equal("X", probe.Site);
+        Assert.Equal("Sydney Sweeney for Novig", probe.Title);
+        Assert.Equal(4, probe.ImageCount);
+        Assert.Equal(0, probe.VideoCount);
+        Assert.Equal(EngineKind.GalleryDl, probe.Engine);
+        Assert.Contains("4 images", probe.Summary);
+        Assert.Equal(4, probe.Items.Count);
+        Assert.All(probe.Items, item => Assert.Equal(MediaKind.Image, item.Kind));
+        Assert.Equal("https://example.com/a.jpg", probe.Items[0].ThumbnailUrl);
+        Assert.Equal("https://example.com/a.jpg", probe.Items[0].DownloadUrl);
+        Assert.Equal("https://example.com/d.jpg", probe.Items[3].ThumbnailUrl);
+    }
+
+    [Fact]
+    public void GalleryDl_parses_x_mixed_photo_and_video()
+    {
+        var probe = GalleryDlParser.Parse(Fixture("twitter-mixed.json"));
+        Assert.Equal("X", probe.Site);
+        Assert.Equal(2, probe.ImageCount);
+        Assert.Equal(1, probe.VideoCount);
+        Assert.Contains("1 video", probe.Summary);
+        Assert.Contains("2 images", probe.Summary);
+        Assert.Equal(3, probe.Items.Count);
+        Assert.Equal(MediaKind.Image, probe.Items[0].Kind);
+        Assert.Equal(MediaKind.Video, probe.Items[2].Kind);
+        Assert.Equal("https://example.com/c.jpg", probe.Items[2].ThumbnailUrl);
+    }
+
+    [Fact]
     public void GalleryDl_ignores_job_and_login_dumps()
     {
         var job = GalleryDlParser.Parse("""[[6,"https://www.instagram.com/x/posts/",{"category":"instagram"}]]""");
@@ -170,4 +202,10 @@ public class ParserTests
             FolderStore.WindowsDownloads(),
             ViewModels.MainViewModel.DefaultDownloads());
     }
+
+    [Theory]
+    [InlineData("https://pbs.twimg.com/media/abc?format=jpg&name=orig", true)]
+    [InlineData("https://i.ytimg.com/vi/dQw4w9wgXcQ/hqdefault.jpg", false)]
+    public void Preview_uses_x_referer_only_for_twitter_cdn(string url, bool expected)
+        => Assert.Equal(expected, ViewModels.PreviewCard.NeedsXReferer(url));
 }

@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform.Storage;
+using FetchIt.Models;
 using FetchIt.Services;
 using FetchIt.ViewModels;
 
@@ -60,6 +61,19 @@ public partial class MainWindow : Window, IUiHost
     {
         var window = new UpdateWindow(result);
         await window.ShowDialog(this);
+    }
+
+    public async Task ShowAlertAsync(string heading, string message, bool isError)
+    {
+        var window = new AlertWindow(heading, message, isError);
+        await window.ShowDialog(this);
+    }
+
+    public async Task<DuplicateChoice> AskIfAlreadySavedAsync(string folderLabel, IReadOnlyList<string> names)
+    {
+        var window = new DuplicateWindow(folderLabel, names);
+        var choice = await window.ShowDialog<DuplicateChoice>(this);
+        return choice;
     }
 
     private async void OnActivated(object? sender, EventArgs e)

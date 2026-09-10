@@ -77,13 +77,19 @@ public static class MediaRouter
            || text.Contains("unable to open database", StringComparison.OrdinalIgnoreCase)
            || text.Contains("cookies", StringComparison.OrdinalIgnoreCase) && text.Contains("denied", StringComparison.OrdinalIgnoreCase);
 
-    public static bool IsSocialPostHost(Uri uri) => IsGalleryHost(uri);
-
-    public static bool IsGalleryHost(Uri uri)
+    public static bool IsSocialPostHost(Uri uri)
     {
         var host = NormalizedHost(uri);
         return host is "instagram.com" or "instagr.am"
             or "threads.net" or "threads.com";
+    }
+
+    public static bool IsGalleryHost(Uri uri)
+    {
+        var host = NormalizedHost(uri);
+        return IsSocialPostHost(uri)
+            || host is "x.com" or "twitter.com"
+            or "mobile.twitter.com" or "mobile.x.com";
     }
 
     private static bool IsOkRuHost(Uri uri)
@@ -139,15 +145,17 @@ public static class MediaRouter
 
         var invalid = Path.GetInvalidFileNameChars();
         var cleaned = new string(title.Select(ch => invalid.Contains(ch) ? ' ' : ch).ToArray());
-        cleaned = Regex.Replace(cleaned, @"\s+", " ").Trim().TrimEnd('.');
+        cleaned = Regex.Replace(cleaned, @"[^\p{L}\p{N} _-]+", " ");
+        cleaned = Regex.Replace(cleaned, @"\s+", " ").Trim().Trim(' ', '.');
         cleaned = cleaned.Replace("..", "", StringComparison.Ordinal);
         if (cleaned is "." or ".." || string.IsNullOrWhiteSpace(cleaned))
             return "fetch";
-        var stem = Path.GetFileNameWithoutExtension(cleaned);
-        if (ReservedNames.Contains(stem) || ReservedNames.Contains(cleaned))
+        if (cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries).Any(ReservedNames.Contains)
+            || ReservedNames.Contains(cleaned)
+            || ReservedNames.Contains(Path.GetFileNameWithoutExtension(cleaned)))
             return "fetch";
         if (cleaned.Length > 80)
-            cleaned = cleaned[..80].Trim().TrimEnd('.');
+            cleaned = cleaned[..80].Trim().Trim(' ', '.');
         return string.IsNullOrWhiteSpace(cleaned) ? "fetch" : cleaned;
     }
 

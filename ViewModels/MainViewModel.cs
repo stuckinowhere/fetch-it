@@ -13,6 +13,8 @@ public interface IUiHost
     Task<string?> ReadClipboardAsync();
     Task<bool> SignInInstagramAsync(CancellationToken cancellationToken);
     Task ShowUpdateAsync(UpdateCheckResult result);
+    Task ShowAlertAsync(string heading, string message, bool isError);
+    Task<DuplicateChoice> AskIfAlreadySavedAsync(string folderLabel, IReadOnlyList<string> names);
 }
 
 public partial class MainViewModel : ViewModelBase
@@ -70,12 +72,16 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowEmptyHint))]
     private string _error = "";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowEmptyHint))]
+    private string _success = "";
     [ObservableProperty] private bool _isDark;
     [ObservableProperty] private double _tileWidth = 320;
     [ObservableProperty] private double _tileImageHeight = 180;
 
     public MediaProbe? Probe { get; private set; }
-    public bool ShowEmptyHint => !HasPreview && string.IsNullOrEmpty(Error) && !IsProbing && !IsBusy;
+    public bool ShowEmptyHint =>
+        !HasPreview && string.IsNullOrEmpty(Error) && string.IsNullOrEmpty(Success) && !IsProbing && !IsBusy;
     public bool IsSinglePreview => HasPreview && PreviewCards.Count == 1;
     public bool HasManyPreviews => PreviewCards.Count > 1;
     public PreviewCard? Hero => PreviewCards.Count == 1 ? PreviewCards[0] : null;
@@ -85,7 +91,7 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnUrlChanged(string value)
     {
-        Error = "";
+        ClearStatus();
         _probeCts?.Cancel();
         ClearResult();
         HideWork();
@@ -151,7 +157,13 @@ public partial class MainViewModel : ViewModelBase
             return;
         var picked = await Ui.PickFolderAsync();
         if (!string.IsNullOrWhiteSpace(picked))
+        {
             FolderPath = picked;
+            if (FolderStore.CanWrite(picked))
+                ClearStatus();
+            else
+                await FailAsync("Windows blocked that folder. Pick another save folder.");
+        }
     }
 
     [RelayCommand]
@@ -165,10 +177,10 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        Error = "";
+        ClearStatus();
         if (!MediaRouter.TryParseHttpUrl(Url, out _))
         {
-            Error = "Not a link.";
+            await FailAsync("Not a link.");
             return;
         }
 
@@ -198,7 +210,7 @@ public partial class MainViewModel : ViewModelBase
                 return;
             ClearResult();
             HideWork();
-            Error = Short(ex.Message);
+            await FailAsync(Short(ex.Message));
         }
         finally
         {
@@ -218,11 +230,30 @@ public partial class MainViewModel : ViewModelBase
 
         if (Probe is null || !HasPreview)
         {
-            Error = "Fetch first.";
+            await FailAsync("Fetch first.");
             return;
         }
 
-        Error = "";
+        ClearStatus();
+
+        var existing = SaveClash.ExistingNames(FolderPath, Probe);
+        var duplicate = DuplicateChoice.KeepBoth;
+        if (existing.Count > 0)
+        {
+            if (Ui is null)
+                duplicate = DuplicateChoice.KeepBoth;
+            else
+                duplicate = await Ui.AskIfAlreadySavedAsync(FolderLabel, existing);
+
+            if (duplicate == DuplicateChoice.Cancel)
+                return;
+            if (duplicate == DuplicateChoice.Skip)
+            {
+                await OkAsync($"Already in {FolderLabel}.");
+                return;
+            }
+        }
+
         IsBusy = true;
         ShowWork("Saving…", indeterminate: true);
 
@@ -232,10 +263,9 @@ public partial class MainViewModel : ViewModelBase
 
         try
         {
-            await _fetcher.DownloadAsync(Probe, Url.Trim(), FolderPath, UiProgress(), token);
-            ProgressIsIndeterminate = false;
-            Progress = 100;
-            ProgressText = "Saved.";
+            await _fetcher.DownloadAsync(Probe, Url.Trim(), FolderPath, UiProgress(), duplicate, token);
+            HideWork();
+            await OkAsync($"Saved to {FolderLabel}.");
         }
         catch (OperationCanceledException)
         {
@@ -244,7 +274,7 @@ public partial class MainViewModel : ViewModelBase
         catch (Exception ex)
         {
             HideWork();
-            Error = Short(ex.Message);
+            await FailAsync(Short(ex.Message));
         }
         finally
         {
@@ -332,7 +362,7 @@ public partial class MainViewModel : ViewModelBase
         HasPreview = PreviewCards.Count > 0;
         HasMore = probe.ExtraCount > 0;
         MoreLabel = HasMore ? $"+{probe.ExtraCount} more" : "";
-        Error = "";
+        ClearStatus();
         NotifyPreviewLayout();
     }
 
@@ -405,6 +435,34 @@ public partial class MainViewModel : ViewModelBase
         return Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar)) is { Length: > 0 } name
             ? name
             : path;
+    }
+
+    private void ClearStatus()
+    {
+        Error = "";
+        Success = "";
+    }
+
+    private Task FailAsync(string message) => ShowStatusAsync(message, isError: true);
+
+    private Task OkAsync(string message) => ShowStatusAsync(message, isError: false);
+
+    private async Task ShowStatusAsync(string message, bool isError)
+    {
+        if (isError)
+        {
+            Success = "";
+            Error = message;
+        }
+        else
+        {
+            Error = "";
+            Success = message;
+        }
+
+        if (Ui is null)
+            return;
+        await Ui.ShowAlertAsync(isError ? "Error" : "Saved", message, isError);
     }
 
     private static string Short(string message)

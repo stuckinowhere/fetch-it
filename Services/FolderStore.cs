@@ -33,6 +33,25 @@ public static class FolderStore
         return WindowsDownloads();
     }
 
+    public static bool CanWrite(string folder)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(folder))
+                return false;
+            var dir = Path.GetFullPath(folder);
+            Directory.CreateDirectory(dir);
+            var probe = Path.Combine(dir, ".fetchit-write-" + Guid.NewGuid().ToString("N"));
+            File.WriteAllBytes(probe, [0x20]);
+            File.Delete(probe);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public static void Save(string path)
     {
         if (string.IsNullOrWhiteSpace(path))

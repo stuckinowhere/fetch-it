@@ -138,6 +138,9 @@ public static class SessionCookies
 
     public static ToolCookieSession BindForTool(bool socialHost)
     {
+        if (!socialHost)
+            return new ToolCookieSession([]);
+
         if (HasUsableFile())
         {
             var text = ReadPlaintext();
@@ -151,7 +154,7 @@ public static class SessionCookies
             }
         }
 
-        if (socialHost && ChromeCookieDb.IsReadable())
+        if (ChromeCookieDb.IsReadable())
             return new ToolCookieSession(["--cookies-from-browser", "chrome"]);
 
         return new ToolCookieSession([]);
