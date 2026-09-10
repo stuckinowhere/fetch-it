@@ -30,11 +30,51 @@ public class SessionCookiesTests
     {
         Assert.Equal(
             ["--cookies", @"C:\tmp\instagram.cookies.txt"],
-            SessionCookies.GalleryDlArguments(true, @"C:\tmp\instagram.cookies.txt"));
-        Assert.Equal(
-            ["--cookies-from-browser", "chrome"],
-            SessionCookies.GalleryDlArguments(false, @"C:\tmp\instagram.cookies.txt"));
-        Assert.Equal(["--cookies-from-browser", "chrome"], ChromeCookieDb.YtDlpArguments(true));
-        Assert.Empty(ChromeCookieDb.YtDlpArguments(false));
+            SessionCookies.GalleryDlArguments(true, @"C:\tmp\instagram.cookies.txt", socialHost: true));
+        Assert.Empty(SessionCookies.GalleryDlArguments(false, @"C:\tmp\instagram.cookies.txt", socialHost: false));
+    }
+
+    [Fact]
+    public void Save_roundtrip_uses_dpapi_and_temp_cookie_file()
+    {
+        var bin = SessionCookies.FilePath;
+        var legacy = SessionCookies.LegacyFilePath;
+        byte[]? binBackup = File.Exists(bin) ? File.ReadAllBytes(bin) : null;
+        string? legacyBackup = File.Exists(legacy) ? File.ReadAllText(legacy) : null;
+        try
+        {
+            SessionCookies.Clear();
+            SessionCookies.Save(
+            [
+                new CookieRow(".instagram.com", "/", true, 0, "sessionid", "abc"),
+                new CookieRow(".instagram.com", "/", true, 0, "ds_user_id", "1")
+            ]);
+            Assert.True(File.Exists(bin));
+            var raw = File.ReadAllText(bin);
+            Assert.DoesNotContain("sessionid", raw, StringComparison.Ordinal);
+            Assert.True(SessionCookies.HasUsableFile());
+
+            using var bound = SessionCookies.BindForTool(socialHost: false);
+            Assert.Equal("--cookies", bound.Arguments[0]);
+            var temp = bound.Arguments[1];
+            Assert.True(File.Exists(temp));
+            Assert.Contains("sessionid", File.ReadAllText(temp), StringComparison.Ordinal);
+            bound.Dispose();
+            Assert.False(File.Exists(temp));
+        }
+        finally
+        {
+            SessionCookies.Clear();
+            if (binBackup is not null)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(bin)!);
+                File.WriteAllBytes(bin, binBackup);
+            }
+            if (legacyBackup is not null)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(legacy)!);
+                File.WriteAllText(legacy, legacyBackup);
+            }
+        }
     }
 }

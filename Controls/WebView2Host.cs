@@ -16,6 +16,7 @@ public sealed class WebView2Host : NativeControlHost
     public CoreWebView2? Core => _controller?.CoreWebView2;
 
     public string UserDataFolder { get; set; } = SessionCookies.WebViewUserData;
+    public string[] AllowedHostSuffixes { get; set; } = ["instagram.com", "instagr.am"];
 
     protected override IPlatformHandle CreateNativeControlCore(IPlatformHandle parent)
     {
@@ -89,6 +90,12 @@ public sealed class WebView2Host : NativeControlHost
             Directory.CreateDirectory(UserDataFolder);
             var env = await CoreWebView2Environment.CreateAsync(null, UserDataFolder).ConfigureAwait(true);
             _controller = await env.CreateCoreWebView2ControllerAsync(_hwnd).ConfigureAwait(true);
+            var core = _controller.CoreWebView2;
+            core.Settings.AreDefaultContextMenusEnabled = false;
+            core.Settings.AreDevToolsEnabled = false;
+            core.NavigationStarting += OnNavigationStarting;
+            core.NewWindowRequested += OnNewWindowRequested;
+            core.DownloadStarting += (_, e) => e.Cancel = true;
             Fit();
             _ready.TrySetResult(true);
         }
@@ -96,6 +103,38 @@ public sealed class WebView2Host : NativeControlHost
         {
             _ready.TrySetException(ex);
         }
+    }
+
+    private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
+    {
+        if (!HostAllowed(e.Uri))
+            e.Cancel = true;
+    }
+
+    private void OnNewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs e)
+    {
+        e.Handled = true;
+        if (HostAllowed(e.Uri) && Core is { } core)
+            core.Navigate(e.Uri);
+    }
+
+    internal bool HostAllowed(string? url) => HostIsAllowed(url, AllowedHostSuffixes);
+
+    internal static bool HostIsAllowed(string? url, IEnumerable<string> suffixes)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return false;
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            return false;
+        if (uri.Scheme == "about")
+            return true;
+        if (uri.Scheme != Uri.UriSchemeHttps)
+            return false;
+        var host = uri.Host.TrimEnd('.').ToLowerInvariant();
+        if (host.StartsWith("www."))
+            host = host[4..];
+        return suffixes.Any(suffix =>
+            host == suffix || host.EndsWith("." + suffix, StringComparison.Ordinal));
     }
 
     private static class Native

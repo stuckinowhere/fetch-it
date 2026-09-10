@@ -22,6 +22,7 @@ public class MediaRouterTests
     [InlineData("https://www.threads.net/@x/post/1", true, "GalleryDl")]
     [InlineData("not a url", false, "YtDlp")]
     [InlineData("ftp://example.com/a", false, "YtDlp")]
+    [InlineData("http://www.youtube.com/watch?v=dQw4w9wgXcQ", false, "YtDlp")]
     public void RoutesHosts(string text, bool valid, string engine)
     {
         var parsed = MediaRouter.TryParseHttpUrl(text, out var uri);
@@ -72,5 +73,28 @@ public class MediaRouterTests
     {
         Assert.Equal("hello world", MediaRouter.SanitizeFolderName(@"hello/world:"));
         Assert.Equal("fetch", MediaRouter.SanitizeFolderName("   "));
+        Assert.Equal("fetch", MediaRouter.SanitizeFolderName(".."));
+        Assert.Equal("fetch", MediaRouter.SanitizeFolderName("."));
+        Assert.Equal("fetch", MediaRouter.SanitizeFolderName("CON"));
+        Assert.Equal("fetch", MediaRouter.SanitizeFolderName("CON.txt"));
+    }
+
+    [Fact]
+    public void SafeCombine_stays_under_folder()
+    {
+        var root = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "fetchit-safe-" + Guid.NewGuid().ToString("N")));
+        Directory.CreateDirectory(root);
+        try
+        {
+            Assert.Equal(Path.Combine(root, "album"), MediaRouter.SafeCombine(root, "album"));
+            var escaped = MediaRouter.SafeCombine(root, "..");
+            Assert.StartsWith(root + Path.DirectorySeparatorChar, escaped);
+            Assert.DoesNotContain("..", Path.GetRelativePath(root, escaped), StringComparison.Ordinal);
+            Assert.Equal(Path.Combine(root, "fetch"), MediaRouter.SafeCombine(root, "CON"));
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch { /* ignore */ }
+        }
     }
 }

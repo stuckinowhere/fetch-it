@@ -5,9 +5,16 @@ namespace FetchIt.Services;
 
 public static class MediaRouter
 {
-    private static readonly Regex HttpUrl = new(
-        @"^https?://[^\s]+$",
+    private static readonly Regex HttpsUrl = new(
+        @"^https://[^\s]+$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    private static readonly HashSet<string> ReservedNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CON", "PRN", "AUX", "NUL",
+        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+    };
 
     public static bool TryParseHttpUrl(string? text, out Uri uri)
     {
@@ -16,11 +23,11 @@ public static class MediaRouter
             return false;
 
         var trimmed = text.Trim();
-        if (!HttpUrl.IsMatch(trimmed))
+        if (!HttpsUrl.IsMatch(trimmed))
             return false;
 
         return Uri.TryCreate(trimmed, UriKind.Absolute, out uri!)
-               && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+               && uri.Scheme == Uri.UriSchemeHttps;
     }
 
     public static EngineKind Prefer(Uri uri)
@@ -132,9 +139,27 @@ public static class MediaRouter
 
         var invalid = Path.GetInvalidFileNameChars();
         var cleaned = new string(title.Select(ch => invalid.Contains(ch) ? ' ' : ch).ToArray());
-        cleaned = Regex.Replace(cleaned, @"\s+", " ").Trim();
+        cleaned = Regex.Replace(cleaned, @"\s+", " ").Trim().TrimEnd('.');
+        cleaned = cleaned.Replace("..", "", StringComparison.Ordinal);
+        if (cleaned is "." or ".." || string.IsNullOrWhiteSpace(cleaned))
+            return "fetch";
+        var stem = Path.GetFileNameWithoutExtension(cleaned);
+        if (ReservedNames.Contains(stem) || ReservedNames.Contains(cleaned))
+            return "fetch";
         if (cleaned.Length > 80)
-            cleaned = cleaned[..80].Trim();
+            cleaned = cleaned[..80].Trim().TrimEnd('.');
         return string.IsNullOrWhiteSpace(cleaned) ? "fetch" : cleaned;
+    }
+
+    public static string SafeCombine(string folder, string title)
+    {
+        var root = Path.GetFullPath(folder);
+        var dest = Path.GetFullPath(Path.Combine(root, SanitizeFolderName(title)));
+        var prefix = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                     + Path.DirectorySeparatorChar;
+        if (!dest.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(dest, root, StringComparison.OrdinalIgnoreCase))
+            return root;
+        return dest;
     }
 }

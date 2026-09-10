@@ -137,7 +137,7 @@ public sealed class GitHubUpdateClient : IDisposable
             {
                 var name = asset.TryGetProperty("name", out var nameEl) ? nameEl.GetString() : null;
                 var url = asset.TryGetProperty("browser_download_url", out var urlEl) ? urlEl.GetString() : null;
-                if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(url))
+                if (string.IsNullOrWhiteSpace(name) || !IsAllowedHttpsUrl(url))
                     continue;
 
                 if (name.EndsWith("-setup.exe", StringComparison.OrdinalIgnoreCase)
@@ -148,7 +148,7 @@ public sealed class GitHubUpdateClient : IDisposable
             }
         }
 
-        var download = setupUrl ?? zipUrl ?? releaseUrl;
+        var download = FirstAllowedUrl(setupUrl, zipUrl, releaseUrl);
         var available = latest > current;
         return new UpdateCheckResult(
             available ? UpdateCheckStatus.Available : UpdateCheckStatus.Current,
@@ -156,18 +156,48 @@ public sealed class GitHubUpdateClient : IDisposable
             latest,
             tag,
             download,
-            releaseUrl,
+            IsAllowedHttpsUrl(releaseUrl) ? releaseUrl : null,
             null);
     }
 
-    public static void OpenUrl(string url)
+    internal static bool IsAllowedHttpsUrl(string? url)
     {
+        if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            return false;
+        if (uri.Scheme != Uri.UriSchemeHttps)
+            return false;
+        var host = uri.Host.TrimEnd('.').ToLowerInvariant();
+        return host is "github.com"
+            or "www.github.com"
+            or "objects.githubusercontent.com"
+            or "release-assets.githubusercontent.com"
+            or "github-releases.githubusercontent.com";
+    }
+
+    private static string? FirstAllowedUrl(params string?[] urls)
+    {
+        foreach (var url in urls)
+        {
+            if (IsAllowedHttpsUrl(url))
+                return url;
+        }
+
+        return null;
+    }
+
+    public static bool TryOpenUrl(string url)
+    {
+        if (!IsAllowedHttpsUrl(url))
+            return false;
         Process.Start(new ProcessStartInfo
         {
             FileName = url,
             UseShellExecute = true
         });
+        return true;
     }
+
+    public static void OpenUrl(string url) => TryOpenUrl(url);
 
     public void Dispose()
     {

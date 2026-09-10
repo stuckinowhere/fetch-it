@@ -24,7 +24,6 @@ public sealed class YtDlpService
             "--socket-timeout", "45",
             "--ffmpeg-location", tools.FfmpegDir
         };
-        args.AddRange(ChromeCookieDb.YtDlpArguments());
         args.Add(url);
 
         var text = await ProcessRunner.RunTextAsync(tools.YtDlp, args, cancellationToken).ConfigureAwait(false);
@@ -47,8 +46,8 @@ public sealed class YtDlpService
         }), cancellationToken).ConfigureAwait(false);
 
         var dest = fileCount > 1
-            ? Path.Combine(folder, MediaRouter.SanitizeFolderName(title))
-            : folder;
+            ? MediaRouter.SafeCombine(folder, title)
+            : Path.GetFullPath(folder);
         Directory.CreateDirectory(dest);
 
         var args = new List<string>
@@ -58,10 +57,10 @@ public sealed class YtDlpService
             "--no-warnings",
             "--socket-timeout", "45",
             "--ffmpeg-location", tools.FfmpegDir,
+            "--windows-filenames",
             "-f", "bv*+ba/b",
             "-o", Path.Combine(dest, "%(title)s.%(ext)s")
         };
-        args.AddRange(ChromeCookieDb.YtDlpArguments());
         args.Add(url);
 
         var code = await ProcessRunner.RunAsync(tools.YtDlp, args, line =>

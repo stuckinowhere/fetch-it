@@ -60,7 +60,7 @@ public partial class UpdateWindow : Window
         {
             var url = _result.DownloadUrl ?? _result.ReleaseUrl;
             if (!string.IsNullOrWhiteSpace(url))
-                GitHubUpdateClient.OpenUrl(url);
+                GitHubUpdateClient.TryOpenUrl(url);
         }
 
         Close();

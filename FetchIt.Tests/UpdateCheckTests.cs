@@ -12,11 +12,11 @@ public class UpdateCheckTests
           "assets": [
             {
               "name": "fetch-it-v1.1.0-win-x64.zip",
-              "browser_download_url": "https://example.test/fetch-it.zip"
+              "browser_download_url": "https://github.com/stuckinowhere/fetch-it/releases/download/v1.1.0/fetch-it-v1.1.0-win-x64.zip"
             },
             {
               "name": "fetch-it-v1.1.0-win-x64-setup.exe",
-              "browser_download_url": "https://example.test/fetch-it-setup.exe"
+              "browser_download_url": "https://github.com/stuckinowhere/fetch-it/releases/download/v1.1.0/fetch-it-v1.1.0-win-x64-setup.exe"
             }
           ]
         }
@@ -47,7 +47,9 @@ public class UpdateCheckTests
 
         Assert.Equal(UpdateCheckStatus.Available, result.Status);
         Assert.Equal(new Version(1, 1, 0, 0), result.Latest);
-        Assert.Equal("https://example.test/fetch-it-setup.exe", result.DownloadUrl);
+        Assert.Equal(
+            "https://github.com/stuckinowhere/fetch-it/releases/download/v1.1.0/fetch-it-v1.1.0-win-x64-setup.exe",
+            result.DownloadUrl);
     }
 
     [Fact]
@@ -60,11 +62,44 @@ public class UpdateCheckTests
     [Fact]
     public void Parse_OlderGitHubTag_IsCurrent()
     {
-        var json = """{ "tag_name": "v1.0.0", "html_url": "https://example.test/r", "assets": [] }""";
+        var json = """{ "tag_name": "v1.0.0", "html_url": "https://github.com/stuckinowhere/fetch-it/releases/tag/v1.0.0", "assets": [] }""";
         var result = GitHubUpdateClient.Parse(json, new Version(1, 1, 0, 0));
         Assert.Equal(UpdateCheckStatus.Current, result.Status);
-        Assert.Equal("https://example.test/r", result.DownloadUrl);
+        Assert.Equal("https://github.com/stuckinowhere/fetch-it/releases/tag/v1.0.0", result.DownloadUrl);
     }
+
+    [Fact]
+    public void Parse_DropsOffsiteAssetUrls()
+    {
+        var json = """
+            {
+              "tag_name": "v9.0.0",
+              "html_url": "https://github.com/stuckinowhere/fetch-it/releases/tag/v9.0.0",
+              "assets": [
+                {
+                  "name": "fetch-it-v9.0.0-win-x64-setup.exe",
+                  "browser_download_url": "https://evil.example/setup.exe"
+                }
+              ]
+            }
+            """;
+        var result = GitHubUpdateClient.Parse(json, new Version(1, 0, 0, 0));
+        Assert.Equal(
+            "https://github.com/stuckinowhere/fetch-it/releases/tag/v9.0.0",
+            result.DownloadUrl);
+        Assert.Equal(
+            "https://github.com/stuckinowhere/fetch-it/releases/tag/v9.0.0",
+            result.ReleaseUrl);
+    }
+
+    [Theory]
+    [InlineData("https://github.com/stuckinowhere/fetch-it/releases/tag/v1.1.1", true)]
+    [InlineData("https://objects.githubusercontent.com/github-production-release-asset/1", true)]
+    [InlineData("http://github.com/stuckinowhere/fetch-it", false)]
+    [InlineData("https://evil.example/setup.exe", false)]
+    [InlineData("https://example.test/fetch-it-setup.exe", false)]
+    public void AllowsOnlyGitHubHttps(string url, bool allowed)
+        => Assert.Equal(allowed, GitHubUpdateClient.IsAllowedHttpsUrl(url));
 
     [Fact]
     public async Task CheckAsync_ReadsLatestReleaseJson()
