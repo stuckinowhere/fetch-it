@@ -24,7 +24,7 @@ public static class ToolBootstrapper
     public const string YtDlpUrl =
         "https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp.exe";
     public const string YtDlpSha256 =
-        "66674953fe251b89f4d08c5d0e35e0728679bd67ab3d7d05c0562af101dd3e7a";
+        "66674953fe251b89f4d08c5f0e35e0728679bd67ab3d7d05c0562af101dd3e7a";
 
     public const string FfmpegZipUrl =
         "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-09-14-51/ffmpeg-N-126482-g903325e279-win64-gpl.zip";
