@@ -4,17 +4,35 @@ namespace FetchIt.Services;
 
 public sealed class GalleryDlService
 {
-    public async Task<MediaProbe> ProbeAsync(string url, bool useCookies, CancellationToken cancellationToken)
+    public async Task<MediaProbe> ProbeAsync(
+        string url,
+        IProgress<FetchProgress>? progress,
+        CancellationToken cancellationToken)
     {
-        var tools = await ToolBootstrapper.EnsureAsync(null, cancellationToken).ConfigureAwait(false);
-        var args = new List<string> { "--dump-json", "--no-download" };
-        AddCookies(args, useCookies);
+        progress?.Report(new FetchProgress { Status = "Getting tools…" });
+        var tools = await ToolBootstrapper.EnsureAsync(new Progress<string>(_ =>
+        {
+            progress?.Report(new FetchProgress { Status = "Getting tools…" });
+        }), cancellationToken).ConfigureAwait(false);
+        progress?.Report(new FetchProgress { Status = "Reading link…" });
+        var args = new List<string>
+        {
+            "--dump-json",
+            "--no-download",
+            "--range", "1-50",
+            "-o", "extractor.instagram.sleep-request=0"
+        };
+        args.AddRange(SessionCookies.GalleryDlArguments());
         args.Add(url);
 
         var text = await ProcessRunner.RunTextAsync(tools.GalleryDl, args, cancellationToken).ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(text) || LooksLikeFailure(text))
+        if (string.IsNullOrWhiteSpace(text) || LooksLikeFailure(text) || MediaRouter.LooksPrivate(text)
+            || MediaRouter.LooksLikeMissingSession(text))
             throw new InvalidOperationException(ShortError(text));
-        return GalleryDlParser.Parse(text, needsLogin: useCookies || MediaRouter.TryParseHttpUrl(url, out var uri) && MediaRouter.NeedsLoginRow(uri));
+        var probe = GalleryDlParser.Parse(text);
+        if (probe.FileCount == 0 || probe.Items.Count == 0)
+            throw new InvalidOperationException(ShortError(text));
+        return probe;
     }
 
     public async Task DownloadAsync(
@@ -23,7 +41,6 @@ public sealed class GalleryDlService
         string title,
         int fileCount,
         IProgress<FetchProgress> progress,
-        bool useCookies,
         CancellationToken cancellationToken)
     {
         var tools = await ToolBootstrapper.EnsureAsync(new Progress<string>(_ =>
@@ -42,7 +59,7 @@ public sealed class GalleryDlService
             "-D", dest,
             "--no-mtime"
         };
-        AddCookies(args, useCookies);
+        args.AddRange(SessionCookies.GalleryDlArguments());
         args.Add(url);
 
         var code = await ProcessRunner.RunAsync(tools.GalleryDl, args, line =>
@@ -56,21 +73,14 @@ public sealed class GalleryDlService
                 progress.Report(new FetchProgress
                 {
                     Percent = total == 0 ? 0 : 100.0 * done / total,
+                    HasPercent = true,
                     Status = $"{done} / {total}"
                 });
             }
         }, cancellationToken).ConfigureAwait(false);
 
         if (code != 0 && done == 0)
-            throw new InvalidOperationException("Could not fetch that post.");
-    }
-
-    internal static void AddCookies(List<string> args, bool useCookies)
-    {
-        if (!useCookies)
-            return;
-        args.Add("--cookies-from-browser");
-        args.Add("chrome");
+            throw new InvalidOperationException(MediaRouter.InstagramSessionMessage);
     }
 
     internal static bool LooksLikeSavedFile(string line)
@@ -89,10 +99,10 @@ public sealed class GalleryDlService
 
     private static string ShortError(string text)
     {
-        if (text.Contains("login", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("cookie", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("authentication", StringComparison.OrdinalIgnoreCase))
-            return "Needs login.";
-        return "Could not read that link.";
+        if (MediaRouter.LooksPrivate(text))
+            return MediaRouter.PublicOnlyMessage;
+        if (MediaRouter.LooksLikeMissingSession(text) || string.IsNullOrWhiteSpace(text))
+            return MediaRouter.InstagramSessionMessage;
+        return MediaRouter.InstagramSessionMessage;
     }
 }

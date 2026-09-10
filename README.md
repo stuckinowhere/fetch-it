@@ -1,8 +1,8 @@
 # fetch it
 
-A Windows 11 app you run **on your PC**. Paste a URL. Save the video or the photos.
+A Windows 11 app you run **on your PC**. Paste a URL, **Fetch** a preview, then **Download** the video or the photos.
 
-YouTube, Shorts, playlists, TikTok, Vimeo, Twitch, Instagram posts and stories, X, Threads, and any other link [yt-dlp](https://github.com/yt-dlp/yt-dlp) or [gallery-dl](https://github.com/mikf/gallery-dl) can read.
+YouTube, Shorts, playlists, TikTok, Vimeo, Twitch, Instagram, X, Threads, Reddit, OK.ru, and any other link [yt-dlp](https://github.com/yt-dlp/yt-dlp) or [gallery-dl](https://github.com/mikf/gallery-dl) can read.
 
 Not for Netflix, Disney+, Prime Video, or other DRM streams.
 
@@ -43,11 +43,12 @@ If PowerShell blocks scripts: `Set-ExecutionPolicy -Scope Process Bypass`.
 
 ## What it does
 
-- **LINK** — the URL. Paste, or it takes a link from the clipboard when you open the window.
-- **VIDEO** — Best / 1080p / 720p / Audio. Hidden when the link is photos only.
-- **FOLDER** — where files go. Click the name to change it. Default is Downloads.
-- **LOGIN** — off / on. Uses your Chrome session for Instagram, X, and Threads stories or private posts. Hidden on YouTube. No password is stored.
-- **Fetch** — save everything in the post. Becomes **Stop** while running.
+- Paste a link, or it takes one from the clipboard when you open the window.
+- **Fetch** — read the link and show a preview. Becomes **Stop** while reading.
+- **Download** — save files after Fetch finishes. Shows speed and how much is left. Becomes **Stop** while saving.
+- Folder icon — where files go. Defaults to your Windows Downloads folder (including if you moved it). Remembers the last folder you pick.
+- Theme icon — light or dark.
+- Instagram may ask you to sign in in a small window. Chrome can stay open. No password is stored.
 
 A post with several files goes in a subfolder named after the title.
 

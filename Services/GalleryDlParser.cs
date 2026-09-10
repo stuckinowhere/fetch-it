@@ -15,16 +15,14 @@ public static class GalleryDlParser
         "mp4", "webm", "mkv", "mov", "m4v", "avi"
     };
 
-    public static MediaProbe Parse(string json, bool needsLogin = true)
+    public static MediaProbe Parse(string json)
     {
-        var items = ParseItems(json);
-        var title = items.Select(item => item.Title).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t)) ?? "post";
-        var site = items.Select(item => item.Site).FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? "Gallery";
-        var videos = items.Count(item => item.IsVideo);
-        var images = items.Count(item => !item.IsVideo);
-
-        if (videos == 0 && images == 0)
-            images = Math.Max(1, items.Count);
+        var parsed = ParseItems(json);
+        var title = parsed.Select(item => item.Title).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t)) ?? "post";
+        var site = parsed.Select(item => item.Site).FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? "Gallery";
+        var items = parsed.Select(item => item.Media).ToList();
+        var videos = items.Count(item => item.Kind == MediaKind.Video);
+        var images = items.Count(item => item.Kind == MediaKind.Image);
 
         return new MediaProbe
         {
@@ -32,14 +30,14 @@ public static class GalleryDlParser
             Site = site,
             VideoCount = videos,
             ImageCount = images,
-            NeedsLogin = needsLogin,
-            Engine = EngineKind.GalleryDl
+            Engine = EngineKind.GalleryDl,
+            Items = items
         };
     }
 
-    internal static IReadOnlyList<(string Title, string Site, bool IsVideo)> ParseItems(string json)
+    internal static List<(MediaItem Media, string Title, string Site)> ParseItems(string json)
     {
-        var found = new List<(string, string, bool)>();
+        var found = new List<(MediaItem, string, string)>();
         var trimmed = json.Trim();
         if (string.IsNullOrWhiteSpace(trimmed))
             return found;
@@ -72,13 +70,16 @@ public static class GalleryDlParser
         return found;
     }
 
-    private static void AddArray(JsonElement array, List<(string, string, bool)> found)
+    private static void AddArray(JsonElement array, List<(MediaItem, string, string)> found)
     {
+        if (array.GetArrayLength() > 0 && array[0].ValueKind == JsonValueKind.Number)
+            return;
+
         if (array.GetArrayLength() == 2
             && array[0].ValueKind == JsonValueKind.String
             && array[1].ValueKind == JsonValueKind.Object)
         {
-            TryAdd(array[1], found);
+            TryAdd(array[1], found, array[0].GetString());
             return;
         }
 
@@ -91,20 +92,60 @@ public static class GalleryDlParser
         }
     }
 
-    private static void TryAdd(JsonElement el, List<(string, string, bool)> found)
+    private static void TryAdd(JsonElement el, List<(MediaItem, string, string)> found, string? urlHint = null)
     {
         if (el.ValueKind != JsonValueKind.Object)
             return;
 
-        var payload = el;
-
-        var ext = ReadString(payload, "extension") ?? ReadString(payload, "ext") ?? "";
-        var title = ReadString(payload, "title")
-                    ?? ReadString(payload, "description")
-                    ?? ReadString(payload, "filename")
+        var url = urlHint ?? ReadString(el, "url") ?? ReadString(el, "display_url");
+        var ext = ReadString(el, "extension") ?? ReadString(el, "ext") ?? ExtFromUrl(url);
+        var isVideo = IsVideo(ext);
+        var title = ReadString(el, "title")
+                    ?? ReadString(el, "description")
+                    ?? ReadString(el, "filename")
                     ?? "post";
-        var site = PrettySite(ReadString(payload, "category") ?? ReadString(payload, "subcategory"));
-        found.Add((title, site, IsVideo(ext)));
+        var site = PrettySite(ReadString(el, "category") ?? ReadString(el, "subcategory"));
+        var item = new MediaItem
+        {
+            Kind = isVideo ? MediaKind.Video : MediaKind.Image,
+            Title = title,
+            Duration = ReadDuration(el),
+            ThumbnailUrl = ThumbnailFor(el, url, isVideo)
+        };
+        found.Add((item, title, site));
+    }
+
+    private static string? ThumbnailFor(JsonElement payload, string? mediaUrl, bool isVideo)
+    {
+        var explicitThumb = ReadString(payload, "thumbnail")
+                            ?? ReadString(payload, "thumbnail_url")
+                            ?? ReadString(payload, "display_url");
+        if (!string.IsNullOrWhiteSpace(explicitThumb))
+            return explicitThumb;
+        return isVideo ? null : mediaUrl;
+    }
+
+    private static TimeSpan? ReadDuration(JsonElement root)
+    {
+        if (!root.TryGetProperty("duration", out var duration) || duration.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+            return null;
+        if (duration.ValueKind == JsonValueKind.Number && duration.TryGetDouble(out var seconds))
+            return TimeSpan.FromSeconds(seconds);
+        return null;
+    }
+
+    private static string ExtFromUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return "";
+        try
+        {
+            return Path.GetExtension(new Uri(url).AbsolutePath).Trim('.');
+        }
+        catch
+        {
+            return "";
+        }
     }
 
     private static bool IsVideo(string ext)

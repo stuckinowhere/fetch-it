@@ -1,9 +1,7 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
-using FetchIt.Controls;
+using FetchIt.Services;
 using FetchIt.ViewModels;
 
 namespace FetchIt.Views;
@@ -15,10 +13,8 @@ public partial class MainWindow : Window, IUiHost
         InitializeComponent();
         AppIcons.ApplyToWindow(this);
         NativeWindowIcon.Bind(this);
-        SizeChanged += (_, _) => ClipToCutCorners();
-        Opened += (_, _) => ClipToCutCorners();
         Activated += OnActivated;
-        PropertyChanged += OnWindowPropertyChanged;
+        SizeChanged += OnWindowSizeChanged;
     }
 
     protected override void OnDataContextChanged(EventArgs e)
@@ -32,7 +28,7 @@ public partial class MainWindow : Window, IUiHost
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            Title = "FOLDER",
+            Title = "Save to",
             AllowMultiple = false
         });
         return folders.Count == 0 ? null : folders[0].TryGetLocalPath();
@@ -44,35 +40,56 @@ public partial class MainWindow : Window, IUiHost
         return clipboard is null ? null : await clipboard.GetTextAsync();
     }
 
+    public async Task<bool> SignInInstagramAsync(CancellationToken cancellationToken)
+    {
+        var window = new InstagramLoginWindow();
+        await using var close = cancellationToken.Register(() =>
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (window.IsVisible)
+                    window.Close(false);
+            });
+        });
+        var result = await window.ShowDialog<bool>(this);
+        return result && SessionCookies.HasUsableFile();
+    }
+
     private async void OnActivated(object? sender, EventArgs e)
     {
         if (DataContext is MainViewModel vm)
             await vm.PasteIfEmptyAsync();
     }
 
-    private void ClipToCutCorners()
+    private void OnPreviewSizeChanged(object? sender, SizeChangedEventArgs e)
+        => FitPreview(e.NewSize.Width, e.NewSize.Height);
+
+    private void OnWindowSizeChanged(object? sender, SizeChangedEventArgs e)
+        => FitPreviewFromWindow();
+
+    private void FitPreviewFromWindow()
     {
-        var cut = Shell?.CutSize ?? 22;
-        Clip = CutCornerFrame.CreateGeometry(Bounds.Width, Bounds.Height, cut);
+        if (DataContext is not MainViewModel vm)
+            return;
+        var width = Math.Max(0, Bounds.Width - 48);
+        var height = Math.Max(0, Bounds.Height - 220);
+        vm.FitPreview(width, height);
     }
 
-    private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    private void FitPreview(double width, double height)
     {
-        if (e.Property == WindowStateProperty && WindowState == WindowState.Maximized)
-            WindowState = WindowState.Normal;
+        if (DataContext is MainViewModel vm)
+            vm.FitPreview(width, height);
     }
 
-    private void OnMinimizeClick(object? sender, RoutedEventArgs e)
+    private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        ShowInTaskbar = true;
-        WindowState = WindowState.Minimized;
-    }
+        if (e.Key != Key.F11)
+            return;
 
-    private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
-
-    private void OnChromePointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed && e.ClickCount == 1)
-            BeginMoveDrag(e);
+        WindowState = WindowState == WindowState.FullScreen
+            ? WindowState.Normal
+            : WindowState.FullScreen;
+        e.Handled = true;
     }
 }

@@ -73,7 +73,7 @@ public static class ToolBootstrapper
 
         progress?.Report("tools");
         await DownloadAsync(http, YtDlpUrl, Path.Combine(dest, "yt-dlp.exe"), cancellationToken).ConfigureAwait(false);
-        await DownloadAsync(http, GalleryDlUrl, Path.Combine(dest, "gallery-dl.exe"), cancellationToken).ConfigureAwait(false);
+        await EnsureGalleryDlAsync(http, dest, cancellationToken).ConfigureAwait(false);
 
         var zipPath = Path.Combine(dest, "ffmpeg.zip");
         await DownloadAsync(http, FfmpegZipUrl, zipPath, cancellationToken).ConfigureAwait(false);
@@ -81,6 +81,43 @@ public static class ToolBootstrapper
         TryDelete(zipPath);
 
         return TryFind() ?? throw new InvalidOperationException("Could not install yt-dlp, gallery-dl, or ffmpeg.");
+    }
+
+    private static async Task EnsureGalleryDlAsync(HttpClient http, string dest, CancellationToken cancellationToken)
+    {
+        var path = Path.Combine(dest, "gallery-dl.exe");
+        try
+        {
+            await DownloadAsync(http, GalleryDlUrl, path, cancellationToken).ConfigureAwait(false);
+            if (new FileInfo(path).Length > 2048)
+                return;
+        }
+        catch (HttpRequestException)
+        {
+        }
+        catch (IOException)
+        {
+        }
+
+        TryDelete(path);
+        await InstallGalleryDlFromPipAsync(path, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal static async Task InstallGalleryDlFromPipAsync(string destExe, CancellationToken cancellationToken)
+    {
+        await ProcessRunner.RunTextAsync("python", ["-m", "pip", "install", "--upgrade", "gallery-dl"], cancellationToken)
+            .ConfigureAwait(false);
+
+        var which = (await ProcessRunner.RunTextAsync(
+                "python",
+                ["-c", "import shutil; print(shutil.which('gallery-dl') or '')"],
+                cancellationToken)
+            .ConfigureAwait(false)).Trim();
+
+        if (string.IsNullOrWhiteSpace(which) || !File.Exists(which))
+            throw new InvalidOperationException("Could not install gallery-dl. Install Python, then try again.");
+
+        File.Copy(which, destExe, overwrite: true);
     }
 
     internal static void ExtractFfmpeg(string zipPath, string dest)
