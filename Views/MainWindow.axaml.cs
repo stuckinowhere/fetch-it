@@ -14,6 +14,7 @@ public partial class MainWindow : Window, IUiHost
         AppIcons.ApplyToWindow(this);
         NativeWindowIcon.Bind(this);
         Activated += OnActivated;
+        Opened += OnOpened;
         SizeChanged += OnWindowSizeChanged;
     }
 
@@ -55,10 +56,23 @@ public partial class MainWindow : Window, IUiHost
         return result && SessionCookies.HasUsableFile();
     }
 
+    public async Task ShowUpdateAsync(UpdateCheckResult result)
+    {
+        var window = new UpdateWindow(result);
+        await window.ShowDialog(this);
+    }
+
     private async void OnActivated(object? sender, EventArgs e)
     {
         if (DataContext is MainViewModel vm)
             await vm.PasteIfEmptyAsync();
+    }
+
+    private async void OnOpened(object? sender, EventArgs e)
+    {
+        Opened -= OnOpened;
+        if (DataContext is MainViewModel vm)
+            await vm.CheckUpdatesOnLaunchAsync();
     }
 
     private void OnPreviewSizeChanged(object? sender, SizeChangedEventArgs e)

@@ -47,6 +47,16 @@
                             Width="48"
                             Height="48"
                             Padding="0"
+                            Command="{Binding CheckForUpdatesCommand}"
+                            ToolTip.Tip="Check for updates">
+                        <icons:MaterialIcon Kind="Update"
+                                            Width="26"
+                                            Height="26" />
+                    </Button>
+                    <Button Classes="Flat"
+                            Width="48"
+                            Height="48"
+                            Padding="0"
                             Command="{Binding ToggleThemeCommand}"
                             ToolTip.Tip="Light or dark">
                         <Panel>
