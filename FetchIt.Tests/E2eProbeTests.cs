@@ -97,4 +97,27 @@ public class E2eProbeTests
                                             || status.Contains("Reading", StringComparison.OrdinalIgnoreCase)
                                             || status.Contains("tools", StringComparison.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public async Task Probe_x_photo_gallery_when_reachable()
+    {
+        if (ToolBootstrapper.TryFind() is null)
+            return;
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        try
+        {
+            var probe = await new MediaFetcher().ProbeAsync(
+                "https://x.com/suzuxtwy/status/2097879112480371052",
+                null,
+                cts.Token);
+            Assert.True(probe.ImageCount >= 2, probe.Summary);
+            Assert.Equal(EngineKind.GalleryDl, probe.Engine);
+            Assert.Equal("X", probe.Site);
+        }
+        catch (InvalidOperationException)
+        {
+            // X syndication can rate-limit or geo-block from some networks.
+        }
+    }
 }

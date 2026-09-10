@@ -15,8 +15,9 @@ public class MediaRouterTests
     [InlineData("https://www.dailymotion.com/video/x7tgad0", true, "YtDlp")]
     [InlineData("https://www.reddit.com/r/videos/comments/abc/title/", true, "YtDlp")]
     [InlineData("https://www.facebook.com/watch/?v=1", true, "YtDlp")]
-    [InlineData("https://x.com/user/status/1", true, "YtDlp")]
-    [InlineData("https://twitter.com/user/status/1", true, "YtDlp")]
+    [InlineData("https://x.com/user/status/1", true, "GalleryDl")]
+    [InlineData("https://twitter.com/user/status/1", true, "GalleryDl")]
+    [InlineData("https://mobile.twitter.com/user/status/1", true, "GalleryDl")]
     [InlineData("https://instagram.com/p/abc", true, "GalleryDl")]
     [InlineData("https://www.instagram.com/stories/x/1", true, "GalleryDl")]
     [InlineData("https://www.threads.net/@x/post/1", true, "GalleryDl")]
@@ -66,6 +67,10 @@ public class MediaRouterTests
             MediaRouter.InstagramSessionMessage);
         Assert.True(MediaRouter.IsInstagram(new Uri("https://www.instagram.com/susie_suey/")));
         Assert.False(MediaRouter.IsInstagram(new Uri("https://www.youtube.com/watch?v=1")));
+        Assert.True(MediaRouter.IsSocialPostHost(new Uri("https://www.instagram.com/p/abc")));
+        Assert.True(MediaRouter.IsSocialPostHost(new Uri("https://www.threads.net/@x/post/1")));
+        Assert.False(MediaRouter.IsSocialPostHost(new Uri("https://x.com/user/status/1")));
+        Assert.True(MediaRouter.IsGalleryHost(new Uri("https://x.com/user/status/1")));
     }
 
     [Fact]
@@ -77,6 +82,9 @@ public class MediaRouterTests
         Assert.Equal("fetch", MediaRouter.SanitizeFolderName("."));
         Assert.Equal("fetch", MediaRouter.SanitizeFolderName("CON"));
         Assert.Equal("fetch", MediaRouter.SanitizeFolderName("CON.txt"));
+        Assert.Equal(
+            "Sydney Sweeney for Novig",
+            MediaRouter.SanitizeFolderName("Sydney Sweeney for Novig. 📁"));
     }
 
     [Fact]
@@ -91,6 +99,21 @@ public class MediaRouterTests
             Assert.StartsWith(root + Path.DirectorySeparatorChar, escaped);
             Assert.DoesNotContain("..", Path.GetRelativePath(root, escaped), StringComparison.Ordinal);
             Assert.Equal(Path.Combine(root, "fetch"), MediaRouter.SafeCombine(root, "CON"));
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch { /* ignore */ }
+        }
+    }
+
+    [Fact]
+    public void CanWrite_temp_folder()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "fetchit-write-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            Assert.True(FolderStore.CanWrite(root));
         }
         finally
         {

@@ -12,7 +12,7 @@ public static class GalleryDlParser
 
     private static readonly HashSet<string> VideoExt = new(StringComparer.OrdinalIgnoreCase)
     {
-        "mp4", "webm", "mkv", "mov", "m4v", "avi"
+        "mp4", "webm", "mkv", "mov", "m4v", "avi", "m3u8"
     };
 
     public static MediaProbe Parse(string json)
@@ -72,8 +72,15 @@ public static class GalleryDlParser
 
     private static void AddArray(JsonElement array, List<(MediaItem, string, string)> found)
     {
-        if (array.GetArrayLength() > 0 && array[0].ValueKind == JsonValueKind.Number)
+        if (array.GetArrayLength() == 0)
             return;
+
+        if (array[0].ValueKind == JsonValueKind.Number && array[0].TryGetInt32(out var code))
+        {
+            if (code == 3)
+                TryAddDumpFile(array, found);
+            return;
+        }
 
         if (array.GetArrayLength() == 2
             && array[0].ValueKind == JsonValueKind.String
@@ -92,6 +99,20 @@ public static class GalleryDlParser
         }
     }
 
+    private static void TryAddDumpFile(JsonElement array, List<(MediaItem, string, string)> found)
+    {
+        if (array.GetArrayLength() >= 3
+            && array[1].ValueKind == JsonValueKind.String
+            && array[2].ValueKind == JsonValueKind.Object)
+        {
+            TryAdd(array[2], found, array[1].GetString());
+            return;
+        }
+
+        if (array.GetArrayLength() == 2 && array[1].ValueKind == JsonValueKind.Object)
+            TryAdd(array[1], found);
+    }
+
     private static void TryAdd(JsonElement el, List<(MediaItem, string, string)> found, string? urlHint = null)
     {
         if (el.ValueKind != JsonValueKind.Object)
@@ -99,8 +120,9 @@ public static class GalleryDlParser
 
         var url = urlHint ?? ReadString(el, "url") ?? ReadString(el, "display_url");
         var ext = ReadString(el, "extension") ?? ReadString(el, "ext") ?? ExtFromUrl(url);
-        var isVideo = IsVideo(ext);
+        var isVideo = IsVideo(ReadString(el, "type"), ext);
         var title = ReadString(el, "title")
+                    ?? ReadString(el, "content")
                     ?? ReadString(el, "description")
                     ?? ReadString(el, "filename")
                     ?? "post";
@@ -110,7 +132,8 @@ public static class GalleryDlParser
             Kind = isVideo ? MediaKind.Video : MediaKind.Image,
             Title = title,
             Duration = ReadDuration(el),
-            ThumbnailUrl = ThumbnailFor(el, url, isVideo)
+            ThumbnailUrl = ThumbnailFor(el, url, isVideo),
+            DownloadUrl = HttpsOrNull(url)
         };
         found.Add((item, title, site));
     }
@@ -148,13 +171,23 @@ public static class GalleryDlParser
         }
     }
 
-    private static bool IsVideo(string ext)
+    private static bool IsVideo(string? type, string ext)
     {
+        if (string.Equals(type, "video", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(type, "animated_gif", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (string.Equals(type, "photo", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(type, "image", StringComparison.OrdinalIgnoreCase))
+            return false;
+
         ext = ext.Trim().Trim('.');
         if (VideoExt.Contains(ext))
             return true;
         return !ImageExt.Contains(ext) && VideoExt.Contains(ext);
     }
+
+    private static string? HttpsOrNull(string? url)
+        => MediaRouter.TryParseHttpUrl(url, out _) ? url : null;
 
     private static string PrettySite(string? category) => category?.ToLowerInvariant() switch
     {

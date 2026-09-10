@@ -1,4 +1,5 @@
 using FetchIt.Models;
+using FetchIt.Services;
 using FetchIt.ViewModels;
 
 namespace FetchIt.Tests;
@@ -24,5 +25,44 @@ public class MainViewModelTests
         vm.FitPreview(1200, 500);
         Assert.True(vm.TileWidth < 1200);
         Assert.Equal(vm.TileWidth, vm.PreviewCards[0].TileWidth);
+    }
+
+    [Fact]
+    public async Task Fetch_without_link_shows_error_alert()
+    {
+        var ui = new FakeUi();
+        var vm = new MainViewModel { Ui = ui, Url = "not-a-link" };
+        await vm.FetchCommand.ExecuteAsync(null);
+        Assert.Equal("Not a link.", vm.Error);
+        Assert.Empty(vm.Success);
+        Assert.Equal(("Error", "Not a link.", true), Assert.Single(ui.Alerts));
+    }
+
+    [Fact]
+    public async Task Download_without_preview_shows_error_alert()
+    {
+        var ui = new FakeUi();
+        var vm = new MainViewModel { Ui = ui };
+        await vm.DownloadCommand.ExecuteAsync(null);
+        Assert.Equal("Fetch first.", vm.Error);
+        Assert.Equal(("Error", "Fetch first.", true), Assert.Single(ui.Alerts));
+    }
+
+    private sealed class FakeUi : IUiHost
+    {
+        public List<(string Heading, string Message, bool IsError)> Alerts { get; } = [];
+
+        public Task<string?> PickFolderAsync() => Task.FromResult<string?>(null);
+        public Task<string?> ReadClipboardAsync() => Task.FromResult<string?>(null);
+        public Task<bool> SignInInstagramAsync(CancellationToken cancellationToken) => Task.FromResult(false);
+        public Task ShowUpdateAsync(UpdateCheckResult result) => Task.CompletedTask;
+        public Task ShowAlertAsync(string heading, string message, bool isError)
+        {
+            Alerts.Add((heading, message, isError));
+            return Task.CompletedTask;
+        }
+
+        public Task<DuplicateChoice> AskIfAlreadySavedAsync(string folderLabel, IReadOnlyList<string> names)
+            => Task.FromResult(DuplicateChoice.Skip);
     }
 }

@@ -12,6 +12,7 @@ public sealed class MediaItem
     public string Title { get; init; } = "";
     public TimeSpan? Duration { get; init; }
     public string? ThumbnailUrl { get; init; }
+    public string? DownloadUrl { get; init; }
 
     public string Overlay
     {

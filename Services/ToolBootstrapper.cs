@@ -44,9 +44,23 @@ public static class ToolBootstrapper
     public static IEnumerable<string> CandidateRoots()
     {
         var baseDir = AppContext.BaseDirectory;
-        yield return Path.Combine(baseDir, "tools");
         yield return baseDir;
         yield return LocalToolsDirectory;
+        yield return Path.Combine(baseDir, "tools");
+    }
+
+    internal const long MinFfmpegBytes = 8L * 1024 * 1024;
+
+    internal static bool IsUsableFfmpeg(string path)
+    {
+        try
+        {
+            return File.Exists(path) && new FileInfo(path).Length >= MinFfmpegBytes;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public static ToolPaths? TryFind()
@@ -58,7 +72,7 @@ public static class ToolBootstrapper
                 continue;
 
             var ffmpeg = Path.Combine(root, "ffmpeg.exe");
-            if (!File.Exists(ffmpeg))
+            if (!IsUsableFfmpeg(ffmpeg))
                 continue;
 
             var galleryLib = Path.Combine(root, "gallery-dl-lib");

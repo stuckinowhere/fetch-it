@@ -16,6 +16,8 @@
                     <SolidColorBrush x:Key="FetchBrush" Color="#FFFFFFFF" />
                     <SolidColorBrush x:Key="FetchTextBrush" Color="#FF000000" />
                     <SolidColorBrush x:Key="MutedBrush" Color="#FFBDBDBD" />
+                    <SolidColorBrush x:Key="DangerBrush" Color="#FFFF5252" />
+                    <SolidColorBrush x:Key="SuccessBrush" Color="#FF69F0AE" />
                     <SolidColorBrush x:Key="MaterialTextBoxBorderColor" Color="#FFFFFFFF" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Light">
@@ -24,6 +26,8 @@
                     <SolidColorBrush x:Key="FetchBrush" Color="#FF000000" />
                     <SolidColorBrush x:Key="FetchTextBrush" Color="#FFFFFFFF" />
                     <SolidColorBrush x:Key="MutedBrush" Color="#FF424242" />
+                    <SolidColorBrush x:Key="DangerBrush" Color="#FFC62828" />
+                    <SolidColorBrush x:Key="SuccessBrush" Color="#FF2E7D32" />
                     <SolidColorBrush x:Key="MaterialTextBoxBorderColor" Color="#FF000000" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
@@ -88,6 +92,27 @@
         </Style>
         <Style Selector="icons|MaterialIcon">
             <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />
+        </Style>
+        <Style Selector="ToolTip">
+            <Setter Property="Background" Value="{DynamicResource PaperBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource InkBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="MaxWidth" Value="360" />
+            <Setter Property="FontFamily" Value="{StaticResource Plex}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Medium" />
+        </Style>
+        <Style Selector="ToolTip /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource PaperBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />
+        </Style>
+        <Style Selector="ToolTip TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />
+            <Setter Property="FontFamily" Value="{StaticResource Plex}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
     </Application.Styles>
 </Application>

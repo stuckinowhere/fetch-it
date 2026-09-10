@@ -54,11 +54,13 @@ public class SessionCookiesTests
             Assert.DoesNotContain("sessionid", raw, StringComparison.Ordinal);
             Assert.True(SessionCookies.HasUsableFile());
 
-            using var bound = SessionCookies.BindForTool(socialHost: false);
+            using var bound = SessionCookies.BindForTool(socialHost: true);
             Assert.Equal("--cookies", bound.Arguments[0]);
             var temp = bound.Arguments[1];
             Assert.True(File.Exists(temp));
             Assert.Contains("sessionid", File.ReadAllText(temp), StringComparison.Ordinal);
+            using var skipped = SessionCookies.BindForTool(socialHost: false);
+            Assert.Empty(skipped.Arguments);
             bound.Dispose();
             Assert.False(File.Exists(temp));
         }

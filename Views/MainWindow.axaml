@@ -38,7 +38,7 @@
                             Height="48"
                             Padding="0"
                             Command="{Binding PickFolderCommand}"
-                            ToolTip.Tip="{Binding FolderTip}">
+                            ToolTip.Tip="Save folder">
                         <icons:MaterialIcon Kind="Folder"
                                             Width="26"
                                             Height="26" />
@@ -48,7 +48,7 @@
                             Height="48"
                             Padding="0"
                             Command="{Binding CheckForUpdatesCommand}"
-                            ToolTip.Tip="Check for updates">
+                            ToolTip.Tip="Updates">
                         <icons:MaterialIcon Kind="Update"
                                             Width="26"
                                             Height="26" />
@@ -58,7 +58,7 @@
                             Height="48"
                             Padding="0"
                             Command="{Binding ToggleThemeCommand}"
-                            ToolTip.Tip="Light or dark">
+                            ToolTip.Tip="Theme">
                         <Panel>
                             <icons:MaterialIcon Kind="WeatherNight"
                                                 Width="26"
@@ -111,14 +111,22 @@
                 </Button>
             </Grid>
 
-            <TextBlock Grid.Row="1"
-                       Margin="0,8,0,0"
-                       Text="{Binding Error}"
-                       IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                       FontFamily="{StaticResource Plex}"
-                       FontSize="14"
-                       FontWeight="Medium"
-                       TextWrapping="Wrap" />
+            <StackPanel Grid.Row="1" Margin="0,8,0,0">
+                <TextBlock Text="{Binding Error}"
+                           IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                           FontFamily="{StaticResource Plex}"
+                           FontSize="14"
+                           FontWeight="Medium"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource DangerBrush}" />
+                <TextBlock Text="{Binding Success}"
+                           IsVisible="{Binding Success, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                           FontFamily="{StaticResource Plex}"
+                           FontSize="14"
+                           FontWeight="Medium"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource SuccessBrush}" />
+            </StackPanel>
 
             <Grid Grid.Row="2"
                   Margin="0,16,0,0"

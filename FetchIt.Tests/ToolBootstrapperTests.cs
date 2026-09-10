@@ -26,6 +26,22 @@ public class ToolBootstrapperTests
     }
 
     [Fact]
+    public void IsUsableFfmpeg_rejects_tiny_stub()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "fetchit-ff-" + Guid.NewGuid().ToString("N") + ".exe");
+        try
+        {
+            File.WriteAllBytes(path, new byte[4096]);
+            Assert.False(ToolBootstrapper.IsUsableFfmpeg(path));
+            Assert.False(ToolBootstrapper.IsUsableFfmpeg(path + ".missing"));
+        }
+        finally
+        {
+            try { File.Delete(path); } catch { /* ignore */ }
+        }
+    }
+
+    [Fact]
     public void ExtractWheel_skips_zip_slip()
     {
         var root = Path.Combine(Path.GetTempPath(), "fetchit-wheel-" + Guid.NewGuid().ToString("N"));

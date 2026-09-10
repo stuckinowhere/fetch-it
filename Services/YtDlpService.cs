@@ -37,6 +37,7 @@ public sealed class YtDlpService
         string folder,
         string title,
         int fileCount,
+        DuplicateChoice duplicate,
         IProgress<FetchProgress> progress,
         CancellationToken cancellationToken)
     {
@@ -45,10 +46,14 @@ public sealed class YtDlpService
             progress.Report(new FetchProgress { Status = "tools" });
         }), cancellationToken).ConfigureAwait(false);
 
-        var dest = fileCount > 1
-            ? MediaRouter.SafeCombine(folder, title)
-            : Path.GetFullPath(folder);
-        Directory.CreateDirectory(dest);
+        var dest = Path.GetFullPath(folder);
+        if (!FolderStore.CanWrite(dest))
+            throw new InvalidOperationException("Windows blocked that folder. Pick another save folder.");
+
+        var stem = MediaRouter.SanitizeFolderName(title);
+        var output = Path.Combine(dest, $"{stem}.%(ext)s");
+        if (duplicate == DuplicateChoice.KeepBoth)
+            output = SaveClash.UniquePath(dest, $"{stem}.mp4").Replace(".mp4", ".%(ext)s", StringComparison.OrdinalIgnoreCase);
 
         var args = new List<string>
         {
@@ -58,9 +63,14 @@ public sealed class YtDlpService
             "--socket-timeout", "45",
             "--ffmpeg-location", tools.FfmpegDir,
             "--windows-filenames",
+            "--merge-output-format", "mp4",
             "-f", "bv*+ba/b",
-            "-o", Path.Combine(dest, "%(title)s.%(ext)s")
+            "-o", output
         };
+        if (duplicate == DuplicateChoice.Overwrite)
+            args.Add("--force-overwrites");
+        else
+            args.Add("--no-overwrites");
         args.Add(url);
 
         var code = await ProcessRunner.RunAsync(tools.YtDlp, args, line =>

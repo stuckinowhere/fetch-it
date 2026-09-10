@@ -7,7 +7,16 @@ namespace FetchIt.ViewModels;
 
 public sealed partial class PreviewCard : ObservableObject, IDisposable
 {
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(12) };
+    private static readonly HttpClient Http = CreateHttp();
+
+    private static HttpClient CreateHttp()
+    {
+        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
+        http.DefaultRequestHeaders.TryAddWithoutValidation(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
+        return http;
+    }
     private CancellationTokenSource? _cts = new();
 
     public PreviewCard(MediaItem item)
@@ -33,7 +42,10 @@ public sealed partial class PreviewCard : ObservableObject, IDisposable
     {
         try
         {
-            using var response = await Http.GetAsync(url, token).ConfigureAwait(false);
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            if (NeedsXReferer(url))
+                request.Headers.Referrer = new Uri("https://x.com/");
+            using var response = await Http.SendAsync(request, token).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
             await using var stream = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
             var ms = new MemoryStream();
@@ -51,6 +63,17 @@ public sealed partial class PreviewCard : ObservableObject, IDisposable
         catch
         {
         }
+    }
+
+    internal static bool NeedsXReferer(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
+            return false;
+        var host = uri.Host.Trim().ToLowerInvariant();
+        if (host.StartsWith("www."))
+            host = host[4..];
+        return host is "pbs.twimg.com" or "video.twimg.com" or "twimg.com"
+            or "x.com" or "twitter.com" or "mobile.twitter.com" or "mobile.x.com";
     }
 
     public void Dispose()

@@ -1,0 +1,6 @@
+[
+  [2, {"category": "twitter", "content": "photos and a clip"}],
+  [3, "https://example.com/a.jpg", {"category": "twitter", "extension": "jpg", "type": "photo", "content": "photos and a clip", "filename": "a"}],
+  [3, "https://example.com/b.jpg", {"category": "twitter", "extension": "jpg", "type": "photo", "content": "photos and a clip", "filename": "b"}],
+  [3, "https://example.com/c.mp4", {"category": "twitter", "extension": "mp4", "type": "video", "content": "photos and a clip", "filename": "c", "thumbnail": "https://example.com/c.jpg"}]
+]

@@ -50,12 +50,13 @@ public sealed class MediaFetcher
         string url,
         string folder,
         IProgress<FetchProgress> progress,
+        DuplicateChoice duplicate,
         CancellationToken cancellationToken)
     {
         var publicUrl = MediaRouter.CanonicalPublicUrl(url);
         return probe.Engine == EngineKind.GalleryDl
-            ? _gallery.DownloadAsync(publicUrl, folder, probe.Title, probe.FileCount, progress, cancellationToken)
-            : _yt.DownloadAsync(publicUrl, folder, probe.Title, probe.FileCount, progress, cancellationToken);
+            ? _gallery.DownloadAsync(publicUrl, folder, probe, duplicate, progress, cancellationToken)
+            : _yt.DownloadAsync(publicUrl, folder, probe.Title, probe.FileCount, duplicate, progress, cancellationToken);
     }
 
     private Task<MediaProbe> RunProbe(
