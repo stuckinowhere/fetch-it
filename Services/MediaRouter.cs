@@ -24,20 +24,105 @@ public static class MediaRouter
     }
 
     public static EngineKind Prefer(Uri uri)
-        => IsSocialPostHost(uri) ? EngineKind.GalleryDl : EngineKind.YtDlp;
+        => IsGalleryHost(uri) ? EngineKind.GalleryDl : EngineKind.YtDlp;
 
-    public static bool NeedsLoginRow(Uri uri) => IsSocialPostHost(uri);
+    public static string PublicOnlyMessage => "Only public profiles.";
+    public static string InstagramSessionMessage =>
+        "Instagram hid the posts. Sign in when asked. Chrome can stay open.";
 
-    public static bool IsSocialPostHost(Uri uri)
+    public static bool IsInstagram(Uri uri) => IsInstagramHost(uri);
+
+    public static string CanonicalPublicUrl(string url)
+    {
+        if (!TryParseHttpUrl(url, out var uri))
+            return url.Trim();
+
+        if (!IsInstagramHost(uri))
+        {
+            if (IsOkRuHost(uri))
+                return CanonicalOkRu(uri);
+            return uri.ToString();
+        }
+
+        var parts = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2
+            && parts[0].Equals("stories", StringComparison.OrdinalIgnoreCase)
+            && !parts[1].Equals("highlights", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{uri.Scheme}://{uri.Host}/{parts[1]}/posts/";
+        }
+
+        if (parts.Length == 1)
+            return $"{uri.Scheme}://{uri.Host}/{parts[0]}/posts/";
+
+        return uri.ToString();
+    }
+
+    public static bool LooksPrivate(string text)
+        => text.Contains("This account is private", StringComparison.OrdinalIgnoreCase)
+           || text.Contains("private account", StringComparison.OrdinalIgnoreCase);
+
+    public static bool LooksLikeMissingSession(string text)
+        => text.Contains("401", StringComparison.Ordinal)
+           || text.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase)
+           || text.Contains("login page", StringComparison.OrdinalIgnoreCase)
+           || text.Contains("Permission denied", StringComparison.OrdinalIgnoreCase)
+           || text.Contains("unable to open database", StringComparison.OrdinalIgnoreCase)
+           || text.Contains("cookies", StringComparison.OrdinalIgnoreCase) && text.Contains("denied", StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsSocialPostHost(Uri uri) => IsGalleryHost(uri);
+
+    public static bool IsGalleryHost(Uri uri)
+    {
+        var host = NormalizedHost(uri);
+        return host is "instagram.com" or "instagr.am"
+            or "threads.net" or "threads.com";
+    }
+
+    private static bool IsOkRuHost(Uri uri)
+    {
+        var host = NormalizedHost(uri);
+        return host is "ok.ru" or "odnoklassniki.ru"
+            or "m.ok.ru" or "mobile.ok.ru"
+            or "m.odnoklassniki.ru";
+    }
+
+    private static string CanonicalOkRu(Uri uri)
+    {
+        var parts = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2
+            && parts[0] is "video" or "videoembed" or "live")
+        {
+            var id = parts[1].Split('?')[0];
+            if (id.Length > 0)
+                return $"https://ok.ru/video/{id}";
+        }
+
+        var query = uri.Query.TrimStart('?');
+        foreach (var pair in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var kv = pair.Split('=', 2);
+            if (kv.Length == 2
+                && Uri.UnescapeDataString(kv[0]).Equals("st.mvId", StringComparison.OrdinalIgnoreCase)
+                && kv[1].Length > 0)
+            {
+                return $"https://ok.ru/video/{Uri.UnescapeDataString(kv[1])}";
+            }
+        }
+
+        return $"https://ok.ru{uri.PathAndQuery}";
+    }
+
+    private static bool IsInstagramHost(Uri uri)
+    {
+        var host = NormalizedHost(uri);
+        return host is "instagram.com" or "instagr.am";
+    }
+
+    private static string NormalizedHost(Uri uri)
     {
         var host = uri.Host.Trim().ToLowerInvariant();
-        if (host.StartsWith("www."))
-            host = host[4..];
-
-        return host is "instagram.com" or "instagr.am"
-            or "threads.net" or "threads.com"
-            or "twitter.com" or "x.com"
-            or "mobile.twitter.com" or "mobile.x.com";
+        return host.StartsWith("www.") ? host[4..] : host;
     }
 
     public static string SanitizeFolderName(string title)

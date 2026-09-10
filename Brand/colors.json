@@ -6,10 +6,10 @@
     "paper": "#FFFFFF"
   },
   "roles": {
-    "background": "ink",
-    "surface": "ink",
-    "border": "paper",
-    "accent": "paper",
-    "text": "paper"
+    "background": "paper",
+    "surface": "paper",
+    "border": "ink",
+    "accent": "ink",
+    "text": "ink"
   }
 }

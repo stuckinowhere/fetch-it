@@ -18,7 +18,25 @@ function Get-Tool([string] $Url, [string] $Dest) {
 }
 
 Get-Tool "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" (Join-Path $OutDir "yt-dlp.exe")
-Get-Tool "https://github.com/mikf/gallery-dl/releases/latest/download/gallery-dl.exe" (Join-Path $OutDir "gallery-dl.exe")
+
+$gallery = Join-Path $OutDir "gallery-dl.exe"
+if (-not ((Test-Path $gallery) -and ((Get-Item $gallery).Length -gt 1024))) {
+    $gh = "https://github.com/mikf/gallery-dl/releases/latest/download/gallery-dl.exe"
+    try {
+        Get-Tool $gh $gallery
+        if ((Get-Item $gallery).Length -lt 2048) { throw "Not a binary" }
+    }
+    catch {
+        Write-Host "GitHub has no gallery-dl.exe; installing with pip"
+        Remove-Item $gallery -Force -ErrorAction SilentlyContinue
+        python -m pip install --upgrade gallery-dl
+        $fromPip = python -c "import shutil; print(shutil.which('gallery-dl') or '')"
+        if ([string]::IsNullOrWhiteSpace($fromPip) -or -not (Test-Path $fromPip.Trim())) {
+            throw "Could not install gallery-dl. Install Python, then re-run."
+        }
+        Copy-Item $fromPip.Trim() $gallery -Force
+    }
+}
 
 $ffmpeg = Join-Path $OutDir "ffmpeg.exe"
 if (-not (Test-Path $ffmpeg)) {

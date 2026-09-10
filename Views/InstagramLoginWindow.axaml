@@ -1,0 +1,23 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="clr-namespace:FetchIt.Controls"
+        x:Class="FetchIt.Views.InstagramLoginWindow"
+        Title=""
+        Width="440"
+        Height="680"
+        MinWidth="360"
+        MinHeight="520"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        Background="{DynamicResource PaperBrush}"
+        Foreground="{DynamicResource InkBrush}">
+    <Grid RowDefinitions="Auto,*">
+        <TextBlock Margin="16,12,16,8"
+                   Text="Sign in to Instagram. Chrome can stay open."
+                   FontSize="14"
+                   FontWeight="Medium"
+                   TextWrapping="Wrap" />
+        <c:WebView2Host x:Name="Web"
+                        Grid.Row="1" />
+    </Grid>
+</Window>
