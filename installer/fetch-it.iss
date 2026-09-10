@@ -55,6 +55,7 @@ Source: "{#PublishDir}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PublishDir}\FetchIt.ico"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#PublishDir}\yt-dlp.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#PublishDir}\gallery-dl.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "{#PublishDir}\gallery-dl-lib\*"; DestDir: "{app}\gallery-dl-lib"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 Source: "{#PublishDir}\ffmpeg.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#PublishDir}\ffprobe.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
@@ -69,6 +70,11 @@ Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: no
 
 [UninstallDelete]
 Type: files; Name: "{app}\FetchIt.ico"
+Type: files; Name: "{app}\instagram.cookies.txt"
+Type: files; Name: "{app}\instagram.cookies.bin"
+Type: filesandordirs; Name: "{app}\ig-webview"
+Type: filesandordirs; Name: "{app}\tools"
+Type: filesandordirs; Name: "{userappdata}\WasdFetchIt"
 Type: dirifempty; Name: "{app}"
 
 [Code]

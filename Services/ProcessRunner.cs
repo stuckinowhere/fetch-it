@@ -10,7 +10,8 @@ internal static class ProcessRunner
         IEnumerable<string> arguments,
         Action<string>? onLine,
         CancellationToken cancellationToken,
-        string? workingDirectory = null)
+        string? workingDirectory = null,
+        IReadOnlyDictionary<string, string>? environment = null)
     {
         var start = new ProcessStartInfo
         {
@@ -24,6 +25,11 @@ internal static class ProcessRunner
         };
         if (!string.IsNullOrWhiteSpace(workingDirectory))
             start.WorkingDirectory = workingDirectory;
+        if (environment is not null)
+        {
+            foreach (var pair in environment)
+                start.Environment[pair.Key] = pair.Value;
+        }
 
         foreach (var argument in arguments)
             start.ArgumentList.Add(argument);
@@ -67,13 +73,14 @@ internal static class ProcessRunner
     public static async Task<string> RunTextAsync(
         string fileName,
         IEnumerable<string> arguments,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyDictionary<string, string>? environment = null)
     {
         var builder = new StringBuilder();
         var code = await RunAsync(fileName, arguments, line =>
         {
             builder.AppendLine(line);
-        }, cancellationToken).ConfigureAwait(false);
+        }, cancellationToken, environment: environment).ConfigureAwait(false);
 
         var text = builder.ToString();
         if (code != 0 && string.IsNullOrWhiteSpace(text))

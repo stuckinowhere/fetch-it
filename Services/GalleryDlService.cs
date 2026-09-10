@@ -15,17 +15,23 @@ public sealed class GalleryDlService
             progress?.Report(new FetchProgress { Status = "Getting tools…" });
         }), cancellationToken).ConfigureAwait(false);
         progress?.Report(new FetchProgress { Status = "Reading link…" });
-        var args = new List<string>
+        if (string.IsNullOrEmpty(tools.GalleryDl))
+            throw new InvalidOperationException(ShortError(""));
+
+        var social = MediaRouter.TryParseHttpUrl(url, out var uri) && MediaRouter.IsGalleryHost(uri);
+        using var cookies = SessionCookies.BindForTool(social);
+        var args = new List<string>(tools.GalleryPrefix)
         {
             "--dump-json",
             "--no-download",
             "--range", "1-50",
             "-o", "extractor.instagram.sleep-request=0"
         };
-        args.AddRange(SessionCookies.GalleryDlArguments());
+        args.AddRange(cookies.Arguments);
         args.Add(url);
 
-        var text = await ProcessRunner.RunTextAsync(tools.GalleryDl, args, cancellationToken).ConfigureAwait(false);
+        var text = await ProcessRunner.RunTextAsync(
+            tools.GalleryDl, args, cancellationToken, tools.GalleryEnvironment).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(text) || LooksLikeFailure(text) || MediaRouter.LooksPrivate(text)
             || MediaRouter.LooksLikeMissingSession(text))
             throw new InvalidOperationException(ShortError(text));
@@ -49,17 +55,22 @@ public sealed class GalleryDlService
         }), cancellationToken).ConfigureAwait(false);
 
         var dest = fileCount > 1
-            ? Path.Combine(folder, MediaRouter.SanitizeFolderName(title))
-            : folder;
+            ? MediaRouter.SafeCombine(folder, title)
+            : Path.GetFullPath(folder);
         Directory.CreateDirectory(dest);
 
+        if (string.IsNullOrEmpty(tools.GalleryDl))
+            throw new InvalidOperationException(MediaRouter.InstagramSessionMessage);
+
         var done = 0;
-        var args = new List<string>
+        var social = MediaRouter.TryParseHttpUrl(url, out var uri) && MediaRouter.IsGalleryHost(uri);
+        using var cookies = SessionCookies.BindForTool(social);
+        var args = new List<string>(tools.GalleryPrefix)
         {
             "-D", dest,
             "--no-mtime"
         };
-        args.AddRange(SessionCookies.GalleryDlArguments());
+        args.AddRange(cookies.Arguments);
         args.Add(url);
 
         var code = await ProcessRunner.RunAsync(tools.GalleryDl, args, line =>
@@ -77,7 +88,7 @@ public sealed class GalleryDlService
                     Status = $"{done} / {total}"
                 });
             }
-        }, cancellationToken).ConfigureAwait(false);
+        }, cancellationToken, environment: tools.GalleryEnvironment).ConfigureAwait(false);
 
         if (code != 0 && done == 0)
             throw new InvalidOperationException(MediaRouter.InstagramSessionMessage);
