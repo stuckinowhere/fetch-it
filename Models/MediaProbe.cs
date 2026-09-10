@@ -1,5 +1,31 @@
 namespace FetchIt.Models;
 
+public enum MediaKind
+{
+    Video,
+    Image
+}
+
+public sealed class MediaItem
+{
+    public MediaKind Kind { get; init; }
+    public string Title { get; init; } = "";
+    public TimeSpan? Duration { get; init; }
+    public string? ThumbnailUrl { get; init; }
+
+    public string Overlay
+    {
+        get
+        {
+            if (Kind == MediaKind.Image)
+                return "IMAGE";
+            return Duration is { } duration && duration > TimeSpan.Zero
+                ? MediaProbe.FormatDuration(duration)
+                : "VIDEO";
+        }
+    }
+}
+
 public enum EngineKind
 {
     YtDlp,
@@ -8,16 +34,20 @@ public enum EngineKind
 
 public sealed class MediaProbe
 {
+    public const int PreviewCap = 50;
+
     public string Title { get; init; } = "";
     public string Site { get; init; } = "";
     public TimeSpan? Duration { get; init; }
     public int VideoCount { get; init; }
     public int ImageCount { get; init; }
-    public bool NeedsLogin { get; init; }
     public EngineKind Engine { get; init; }
+    public IReadOnlyList<MediaItem> Items { get; init; } = [];
     public bool HasVideo => VideoCount > 0;
     public bool HasImages => ImageCount > 0;
     public int FileCount => VideoCount + ImageCount;
+    public int ExtraCount => Math.Max(0, Items.Count - PreviewCap);
+    public IEnumerable<MediaItem> PreviewItems => Items.Take(PreviewCap);
 
     public string Summary
     {
@@ -47,5 +77,6 @@ public sealed class MediaProbe
 public sealed class FetchProgress
 {
     public double Percent { get; init; }
+    public bool HasPercent { get; init; }
     public string Status { get; init; } = "";
 }

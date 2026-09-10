@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FetchIt.Models;
@@ -9,6 +11,7 @@ public interface IUiHost
 {
     Task<string?> PickFolderAsync();
     Task<string?> ReadClipboardAsync();
+    Task<bool> SignInInstagramAsync(CancellationToken cancellationToken);
 }
 
 public partial class MainViewModel : ViewModelBase
@@ -17,6 +20,8 @@ public partial class MainViewModel : ViewModelBase
     private CancellationTokenSource? _probeCts;
     private CancellationTokenSource? _fetchCts;
     private int _probeVersion;
+    private double _viewportWidth;
+    private double _viewportHeight;
 
     public MainViewModel() : this(new MediaFetcher())
     {
@@ -25,59 +30,77 @@ public partial class MainViewModel : ViewModelBase
     public MainViewModel(MediaFetcher fetcher)
     {
         _fetcher = fetcher;
-        FolderPath = DefaultDownloads();
+        FolderPath = FolderStore.Load();
+        IsDark = ThemeStore.IsDark();
     }
 
     public IUiHost? Ui { get; set; }
+
+    public ObservableCollection<PreviewCard> PreviewCards { get; } = [];
 
     [ObservableProperty] private string _url = "";
     [ObservableProperty] private string _title = "";
     [ObservableProperty] private string _summary = "";
     [ObservableProperty] private bool _hasResult;
-    [ObservableProperty] private bool _showVideo = true;
-    [ObservableProperty] private bool _showLogin;
-    [ObservableProperty] private bool _useCookies;
-    [ObservableProperty] private string _loginLabel = "off";
-    [ObservableProperty] private string _qualityLabel = VideoQualityText.Label(VideoQuality.Best);
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowEmptyHint))]
+    [NotifyPropertyChangedFor(nameof(CanDownload))]
+    [NotifyPropertyChangedFor(nameof(IsSinglePreview))]
+    private bool _hasPreview;
+    [ObservableProperty] private bool _hasMore;
+    [ObservableProperty] private string _moreLabel = "";
     [ObservableProperty] private string _folderPath = "";
     [ObservableProperty] private string _folderLabel = "Downloads";
-    [ObservableProperty] private bool _isBusy;
+    [ObservableProperty] private string _folderTip = "Choose save folder";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowEmptyHint))]
+    [NotifyPropertyChangedFor(nameof(DownloadLabel))]
+    private bool _isBusy;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowEmptyHint))]
+    [NotifyPropertyChangedFor(nameof(FetchLabel))]
+    [NotifyPropertyChangedFor(nameof(CanDownload))]
+    private bool _isProbing;
     [ObservableProperty] private bool _showProgress;
+    [ObservableProperty] private bool _progressIsIndeterminate;
     [ObservableProperty] private double _progress;
     [ObservableProperty] private string _progressText = "";
-    [ObservableProperty] private string _error = "";
-    [ObservableProperty] private string _actionLabel = "Fetch";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowEmptyHint))]
+    private string _error = "";
+    [ObservableProperty] private bool _isDark;
+    [ObservableProperty] private double _tileWidth = 320;
+    [ObservableProperty] private double _tileImageHeight = 180;
 
-    public VideoQuality Quality { get; private set; } = VideoQuality.Best;
     public MediaProbe? Probe { get; private set; }
+    public bool ShowEmptyHint => !HasPreview && string.IsNullOrEmpty(Error) && !IsProbing && !IsBusy;
+    public bool IsSinglePreview => HasPreview && PreviewCards.Count == 1;
+    public bool HasManyPreviews => PreviewCards.Count > 1;
+    public PreviewCard? Hero => PreviewCards.Count == 1 ? PreviewCards[0] : null;
+    public string FetchLabel => IsProbing ? "Stop" : "Fetch";
+    public string DownloadLabel => IsBusy ? "Stop" : "Download";
+    public bool CanDownload => HasPreview && Probe is not null && !IsProbing;
 
     partial void OnUrlChanged(string value)
     {
         Error = "";
-        if (MediaRouter.TryParseHttpUrl(value, out var uri))
-            ShowLogin = MediaRouter.NeedsLoginRow(uri);
-        else
-            ShowLogin = false;
-        _ = ProbeSoonAsync();
-    }
-
-    partial void OnUseCookiesChanged(bool value)
-    {
-        LoginLabel = value ? "on" : "off";
-        if (MediaRouter.TryParseHttpUrl(Url, out _))
-            _ = ProbeSoonAsync();
+        _probeCts?.Cancel();
+        ClearResult();
+        HideWork();
     }
 
     [RelayCommand]
-    private void ToggleLogin() => UseCookies = !UseCookies;
-
-    partial void OnFolderPathChanged(string value) => FolderLabel = FolderDisplay(value);
-
-    [RelayCommand]
-    private void CycleQuality()
+    private void ToggleTheme()
     {
-        Quality = VideoQualityText.Next(Quality);
-        QualityLabel = VideoQualityText.Label(Quality);
+        if (Application.Current is { } app)
+            IsDark = ThemeStore.Toggle(app);
+    }
+
+    partial void OnFolderPathChanged(string value)
+    {
+        FolderLabel = FolderDisplay(value);
+        FolderTip = $"Save folder: {value}";
+        FolderStore.Save(value);
     }
 
     [RelayCommand]
@@ -91,11 +114,13 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private async Task FetchOrStopAsync()
+    private async Task FetchAsync()
     {
         if (IsBusy)
+            return;
+        if (IsProbing)
         {
-            _fetchCts?.Cancel();
+            _probeCts?.Cancel();
             return;
         }
 
@@ -106,11 +131,59 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
+        var version = Interlocked.Increment(ref _probeVersion);
+        _probeCts?.Cancel();
+        _probeCts = new CancellationTokenSource();
+        var token = _probeCts.Token;
+
+        IsProbing = true;
+        ShowWork("Reading link…", indeterminate: true);
+        try
+        {
+            var probe = await ProbeWithSessionAsync(Url.Trim(), token);
+            if (version != _probeVersion)
+                return;
+            ApplyProbe(probe);
+            HideWork();
+        }
+        catch (OperationCanceledException)
+        {
+            if (version == _probeVersion)
+                HideWork();
+        }
+        catch (Exception ex)
+        {
+            if (version != _probeVersion)
+                return;
+            ClearResult();
+            HideWork();
+            Error = Short(ex.Message);
+        }
+        finally
+        {
+            if (version == _probeVersion)
+                IsProbing = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task DownloadAsync()
+    {
+        if (IsBusy)
+        {
+            _fetchCts?.Cancel();
+            return;
+        }
+
+        if (Probe is null || !HasPreview)
+        {
+            Error = "Fetch first.";
+            return;
+        }
+
+        Error = "";
         IsBusy = true;
-        ActionLabel = "Stop";
-        ShowProgress = true;
-        Progress = 0;
-        ProgressText = "";
+        ShowWork("Saving…", indeterminate: true);
 
         _fetchCts?.Cancel();
         _fetchCts = new CancellationTokenSource();
@@ -118,32 +191,23 @@ public partial class MainViewModel : ViewModelBase
 
         try
         {
-            var probe = Probe ?? await _fetcher.ProbeAsync(Url.Trim(), UseCookies, token);
-            ApplyProbe(probe);
-            var progress = new Progress<FetchProgress>(update =>
-            {
-                Progress = update.Percent;
-                ProgressText = update.Status;
-            });
-            await _fetcher.DownloadAsync(probe, Url.Trim(), FolderPath, Quality, UseCookies, progress, token);
+            await _fetcher.DownloadAsync(Probe, Url.Trim(), FolderPath, UiProgress(), token);
+            ProgressIsIndeterminate = false;
             Progress = 100;
-            ProgressText = "done";
+            ProgressText = "Saved.";
         }
         catch (OperationCanceledException)
         {
-            ProgressText = "";
-            ShowProgress = false;
+            HideWork();
         }
         catch (Exception ex)
         {
+            HideWork();
             Error = Short(ex.Message);
-            if (Error.Contains("login", StringComparison.OrdinalIgnoreCase))
-                ShowLogin = true;
         }
         finally
         {
             IsBusy = false;
-            ActionLabel = "Fetch";
         }
     }
 
@@ -156,41 +220,65 @@ public partial class MainViewModel : ViewModelBase
             Url = clip!.Trim();
     }
 
-    private async Task ProbeSoonAsync()
+    private async Task<MediaProbe> ProbeWithSessionAsync(string url, CancellationToken token)
     {
-        var version = Interlocked.Increment(ref _probeVersion);
-        _probeCts?.Cancel();
-        _probeCts = new CancellationTokenSource();
-        var token = _probeCts.Token;
-
+        await EnsureInstagramSessionAsync(url, token);
         try
         {
-            await Task.Delay(350, token);
-            if (version != _probeVersion)
-                return;
-            if (!MediaRouter.TryParseHttpUrl(Url, out _))
-            {
-                ClearResult();
-                return;
-            }
+            return await _fetcher.ProbeAsync(url, UiProgress(), token);
+        }
+        catch (InvalidOperationException ex) when (ex.Message == MediaRouter.InstagramSessionMessage)
+        {
+            SessionCookies.Clear();
+            await EnsureInstagramSessionAsync(url, token, forceSignIn: true);
+            return await _fetcher.ProbeAsync(url, UiProgress(), token);
+        }
+    }
 
-            var probe = await _fetcher.ProbeAsync(Url.Trim(), UseCookies, token);
-            if (version != _probeVersion)
-                return;
-            ApplyProbe(probe);
-        }
-        catch (OperationCanceledException)
+    private async Task EnsureInstagramSessionAsync(
+        string url,
+        CancellationToken token,
+        bool forceSignIn = false)
+    {
+        if (!MediaRouter.TryParseHttpUrl(url, out var uri) || !MediaRouter.IsInstagram(uri))
+            return;
+        if (!forceSignIn && (SessionCookies.HasUsableFile() || ChromeCookieDb.IsReadable()))
+            return;
+        if (Ui is null)
+            return;
+
+        ShowWork("Sign in to Instagram…", indeterminate: true);
+        var signedIn = await Ui.SignInInstagramAsync(token);
+        if (!signedIn)
+            throw new InvalidOperationException(MediaRouter.InstagramSessionMessage);
+    }
+
+    private IProgress<FetchProgress> UiProgress() => new Progress<FetchProgress>(update =>
+    {
+        if (update.HasPercent || update.Percent > 0)
         {
+            ProgressIsIndeterminate = false;
+            Progress = update.Percent;
         }
-        catch (Exception ex)
-        {
-            if (version != _probeVersion)
-                return;
-            ClearResult();
-            Error = Short(ex.Message);
-            if (Error.Contains("login", StringComparison.OrdinalIgnoreCase) && MediaRouter.TryParseHttpUrl(Url, out var uri))
-                ShowLogin = MediaRouter.NeedsLoginRow(uri) || true;
-        }
+        if (!string.IsNullOrWhiteSpace(update.Status))
+            ProgressText = update.Status;
+    });
+
+    private void ShowWork(string status, bool indeterminate)
+    {
+        ShowProgress = true;
+        ProgressIsIndeterminate = indeterminate;
+        if (indeterminate)
+            Progress = 0;
+        ProgressText = status;
+    }
+
+    private void HideWork()
+    {
+        ShowProgress = false;
+        ProgressIsIndeterminate = false;
+        Progress = 0;
+        ProgressText = "";
     }
 
     private void ApplyProbe(MediaProbe probe)
@@ -199,10 +287,12 @@ public partial class MainViewModel : ViewModelBase
         Title = probe.Title;
         Summary = probe.Summary;
         HasResult = true;
-        ShowVideo = probe.HasVideo;
-        if (probe.NeedsLogin || (MediaRouter.TryParseHttpUrl(Url, out var uri) && MediaRouter.NeedsLoginRow(uri)))
-            ShowLogin = true;
+        ReplaceCards(probe.PreviewItems);
+        HasPreview = PreviewCards.Count > 0;
+        HasMore = probe.ExtraCount > 0;
+        MoreLabel = HasMore ? $"+{probe.ExtraCount} more" : "";
         Error = "";
+        NotifyPreviewLayout();
     }
 
     private void ClearResult()
@@ -211,15 +301,59 @@ public partial class MainViewModel : ViewModelBase
         Title = "";
         Summary = "";
         HasResult = false;
-        ShowVideo = true;
+        ReplaceCards([]);
+        HasPreview = false;
+        HasMore = false;
+        MoreLabel = "";
+        NotifyPreviewLayout();
     }
 
-    internal static string DefaultDownloads()
+    private void ReplaceCards(IEnumerable<MediaItem> items)
     {
-        var user = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var downloads = Path.Combine(user, "Downloads");
-        return Directory.Exists(downloads) ? downloads : user;
+        foreach (var card in PreviewCards)
+            card.Dispose();
+        PreviewCards.Clear();
+        foreach (var item in items)
+            PreviewCards.Add(new PreviewCard(item));
+        NotifyPreviewLayout();
     }
+
+    public void FitPreview(double viewportWidth, double viewportHeight)
+    {
+        _viewportWidth = Math.Max(0, viewportWidth);
+        _viewportHeight = Math.Max(0, viewportHeight);
+        var width = _viewportWidth;
+        var height = _viewportHeight;
+        if (PreviewCards.Count <= 1)
+        {
+            TileWidth = Math.Max(240, width);
+            TileImageHeight = Math.Max(180, height);
+        }
+        else
+        {
+            var cols = width >= 1000 ? 3 : width >= 640 ? 2 : 1;
+            const double gap = 16;
+            TileWidth = Math.Max(200, Math.Floor((width - gap * (cols - 1)) / cols));
+            TileImageHeight = Math.Max(120, Math.Floor(TileWidth * 9.0 / 16.0));
+        }
+
+        foreach (var card in PreviewCards)
+        {
+            card.TileWidth = TileWidth;
+            card.TileImageHeight = TileImageHeight;
+        }
+    }
+
+    private void NotifyPreviewLayout()
+    {
+        OnPropertyChanged(nameof(IsSinglePreview));
+        OnPropertyChanged(nameof(HasManyPreviews));
+        OnPropertyChanged(nameof(Hero));
+        if (_viewportWidth > 0 || _viewportHeight > 0)
+            FitPreview(_viewportWidth, _viewportHeight);
+    }
+
+    internal static string DefaultDownloads() => FolderStore.WindowsDownloads();
 
     internal static string FolderDisplay(string path)
     {

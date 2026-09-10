@@ -12,3 +12,4 @@ obj/
 publish/
 artifacts/
 tools/
+.tgrep/
