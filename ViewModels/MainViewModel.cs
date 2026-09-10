@@ -12,6 +12,7 @@ public interface IUiHost
     Task<string?> PickFolderAsync();
     Task<string?> ReadClipboardAsync();
     Task<bool> SignInInstagramAsync(CancellationToken cancellationToken);
+    Task ShowUpdateAsync(UpdateCheckResult result);
 }
 
 public partial class MainViewModel : ViewModelBase
@@ -20,6 +21,7 @@ public partial class MainViewModel : ViewModelBase
     private CancellationTokenSource? _probeCts;
     private CancellationTokenSource? _fetchCts;
     private int _probeVersion;
+    private int _checkingUpdates;
     private double _viewportWidth;
     private double _viewportHeight;
 
@@ -94,6 +96,45 @@ public partial class MainViewModel : ViewModelBase
     {
         if (Application.Current is { } app)
             IsDark = ThemeStore.Toggle(app);
+    }
+
+    public Task CheckUpdatesOnLaunchAsync() => CheckForUpdatesCoreAsync(notifyWhenCurrent: false);
+
+    [RelayCommand]
+    private Task CheckForUpdatesAsync() => CheckForUpdatesCoreAsync(notifyWhenCurrent: true);
+
+    private async Task CheckForUpdatesCoreAsync(bool notifyWhenCurrent)
+    {
+        if (Interlocked.CompareExchange(ref _checkingUpdates, 1, 0) != 0)
+            return;
+
+        try
+        {
+            using var client = new GitHubUpdateClient();
+            var result = await client.CheckAsync().ConfigureAwait(true);
+            if (result.Status == UpdateCheckStatus.Current && !notifyWhenCurrent)
+                return;
+            if (Ui is null)
+                return;
+            await Ui.ShowUpdateAsync(result);
+        }
+        catch
+        {
+            if (!notifyWhenCurrent || Ui is null)
+                return;
+            await Ui.ShowUpdateAsync(new UpdateCheckResult(
+                UpdateCheckStatus.Failed,
+                AppVersion.Current,
+                null,
+                null,
+                null,
+                null,
+                "Could not check for updates."));
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _checkingUpdates, 0);
+        }
     }
 
     partial void OnFolderPathChanged(string value)
