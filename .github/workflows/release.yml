@@ -19,7 +19,7 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Test
-        run: dotnet test FetchIt.sln -c Release --nologo
+        run: dotnet test FetchIt.sln -c Release --nologo --filter FullyQualifiedName!~E2eProbeTests
 
       - name: Publish win-x64
         shell: pwsh

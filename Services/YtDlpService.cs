@@ -4,33 +4,39 @@ namespace FetchIt.Services;
 
 public sealed class YtDlpService
 {
-    public async Task<MediaProbe> ProbeAsync(string url, bool useCookies, CancellationToken cancellationToken)
+    public async Task<MediaProbe> ProbeAsync(
+        string url,
+        IProgress<FetchProgress>? progress,
+        CancellationToken cancellationToken)
     {
-        var tools = await ToolBootstrapper.EnsureAsync(null, cancellationToken).ConfigureAwait(false);
+        progress?.Report(new FetchProgress { Status = "Getting tools…" });
+        var tools = await ToolBootstrapper.EnsureAsync(new Progress<string>(_ =>
+        {
+            progress?.Report(new FetchProgress { Status = "Getting tools…" });
+        }), cancellationToken).ConfigureAwait(false);
+        progress?.Report(new FetchProgress { Status = "Reading link…" });
         var args = new List<string>
         {
             "--dump-single-json",
             "--no-download",
             "--no-warnings",
-            "--no-playlist",
             "--ignore-no-formats-error",
+            "--socket-timeout", "45",
             "--ffmpeg-location", tools.FfmpegDir
         };
-        AddCookies(args, useCookies);
+        args.AddRange(ChromeCookieDb.YtDlpArguments());
         args.Add(url);
 
         var text = await ProcessRunner.RunTextAsync(tools.YtDlp, args, cancellationToken).ConfigureAwait(false);
         if (LooksLikeFailure(text))
             throw new InvalidOperationException(ShortError(text));
-        return YtDlpParser.Parse(text, needsLogin: useCookies);
+        return YtDlpParser.Parse(text);
     }
 
     public async Task DownloadAsync(
         string url,
         string folder,
         string title,
-        VideoQuality quality,
-        bool useCookies,
         int fileCount,
         IProgress<FetchProgress> progress,
         CancellationToken cancellationToken)
@@ -48,46 +54,31 @@ public sealed class YtDlpService
         var args = new List<string>
         {
             "--newline",
+            "--progress",
             "--no-warnings",
+            "--socket-timeout", "45",
             "--ffmpeg-location", tools.FfmpegDir,
+            "-f", "bv*+ba/b",
             "-o", Path.Combine(dest, "%(title)s.%(ext)s")
         };
-        args.AddRange(FormatArgs(quality));
-        AddCookies(args, useCookies);
+        args.AddRange(ChromeCookieDb.YtDlpArguments());
         args.Add(url);
 
         var code = await ProcessRunner.RunAsync(tools.YtDlp, args, line =>
         {
-            var percent = YtDlpParser.TryParsePercent(line);
-            var status = YtDlpParser.TryParseSizeStatus(line) ?? "";
-            if (percent is not null || status.Length > 0)
+            var parsed = YtDlpParser.TryParseDownloadProgress(line);
+            if (parsed is null)
+                return;
+            progress.Report(new FetchProgress
             {
-                progress.Report(new FetchProgress
-                {
-                    Percent = percent ?? 0,
-                    Status = status
-                });
-            }
+                Percent = parsed.Value.Percent ?? 0,
+                HasPercent = parsed.Value.Percent is not null,
+                Status = parsed.Value.Status
+            });
         }, cancellationToken).ConfigureAwait(false);
 
         if (code != 0)
             throw new InvalidOperationException("Could not fetch that video.");
-    }
-
-    public static IReadOnlyList<string> FormatArgs(VideoQuality quality) => quality switch
-    {
-        VideoQuality.P1080 => ["-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"],
-        VideoQuality.P720 => ["-f", "bestvideo[height<=720]+bestaudio/best[height<=720]/best"],
-        VideoQuality.Audio => ["-x", "--audio-format", "m4a"],
-        _ => ["-f", "bv*+ba/b"]
-    };
-
-    internal static void AddCookies(List<string> args, bool useCookies)
-    {
-        if (!useCookies)
-            return;
-        args.Add("--cookies-from-browser");
-        args.Add("chrome");
     }
 
     private static bool LooksLikeFailure(string text)
@@ -102,10 +93,13 @@ public sealed class YtDlpService
     {
         if (text.Contains("DRM", StringComparison.OrdinalIgnoreCase))
             return "That stream is protected.";
-        if (text.Contains("login", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("cookie", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("Private", StringComparison.OrdinalIgnoreCase))
-            return "Needs login.";
+        if (MediaRouter.LooksPrivate(text))
+            return MediaRouter.PublicOnlyMessage;
+        if (text.Contains("logged-in", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("cookies-from-browser", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("Sign in", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("login required", StringComparison.OrdinalIgnoreCase))
+            return "That site wants a signed-in session. Close Chrome, then paste the link again.";
         return "Could not read that link.";
     }
 }

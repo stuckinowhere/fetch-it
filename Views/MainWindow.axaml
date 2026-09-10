@@ -1,172 +1,259 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:FetchIt.ViewModels"
-        xmlns:controls="using:FetchIt.Controls"
+        xmlns:controls="clr-namespace:Material.Styles.Controls;assembly=Material.Styles"
+        xmlns:icons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        d:DesignWidth="440" d:DesignHeight="640"
+        d:DesignWidth="1100" d:DesignHeight="700"
         x:Class="FetchIt.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Icon="/Assets/fetchit.png"
-        Title="fetch it"
-        Width="440"
-        Height="640"
-        CanResize="False"
-        SystemDecorations="None"
+        Title=""
+        Width="1100"
+        Height="700"
+        MinWidth="800"
+        MinHeight="520"
+        CanResize="True"
+        WindowState="Normal"
         WindowStartupLocation="CenterScreen"
-        Background="Transparent"
-        TransparencyLevelHint="Transparent"
-        TransparencyBackgroundFallback="#000000"
-        ShowInTaskbar="True">
+        ShowInTaskbar="True"
+        Background="{DynamicResource PaperBrush}"
+        Foreground="{DynamicResource InkBrush}"
+        KeyDown="OnKeyDown">
 
     <Design.DataContext>
         <vm:MainViewModel />
     </Design.DataContext>
 
-    <controls:CutCornerFrame x:Name="Shell"
-                             CutSize="22"
-                             StrokeThickness="1.4"
-                             Stroke="#FFFFFF"
-                             Fill="#000000"
-                             PointerPressed="OnChromePointerPressed">
-        <controls:CutCornerFrame Margin="9"
-                                 CutSize="13"
-                                 StrokeThickness="0.7"
-                                 Stroke="#FFFFFF"
-                                 Fill="#000000"
-                                 ShowCornerMarks="False">
-            <Grid RowDefinitions="Auto,*" Margin="18,16,18,20">
-                <Grid Grid.Row="0" Background="Transparent" PointerPressed="OnChromePointerPressed">
-                    <StackPanel Orientation="Horizontal"
-                                Spacing="10"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Margin="0,0,56,0">
-                        <controls:WasdMark Width="26"
-                                           Height="26"
-                                           VerticalAlignment="Center"
-                                           HexFill="#000000"
-                                           Accent="#FFFFFF"
-                                           KeyFill="#000000" />
-                        <TextBlock Text="fetch it"
+    <Grid RowDefinitions="Auto,*,Auto">
+        <Border Grid.Row="0" Height="56" Padding="8,0">
+            <StackPanel HorizontalAlignment="Right"
+                        Orientation="Horizontal"
+                        Spacing="0"
+                        Margin="0,0,4,0">
+                    <Button Classes="Flat"
+                            Width="48"
+                            Height="48"
+                            Padding="0"
+                            Command="{Binding PickFolderCommand}"
+                            ToolTip.Tip="{Binding FolderTip}">
+                        <icons:MaterialIcon Kind="Folder"
+                                            Width="26"
+                                            Height="26" />
+                    </Button>
+                    <Button Classes="Flat"
+                            Width="48"
+                            Height="48"
+                            Padding="0"
+                            Command="{Binding ToggleThemeCommand}"
+                            ToolTip.Tip="Light or dark">
+                        <Panel>
+                            <icons:MaterialIcon Kind="WeatherNight"
+                                                Width="26"
+                                                Height="26"
+                                                IsVisible="{Binding IsDark}" />
+                            <icons:MaterialIcon Kind="WhiteBalanceSunny"
+                                                Width="26"
+                                                Height="26"
+                                                IsVisible="{Binding IsDark, Converter={x:Static BoolConverters.Not}}" />
+                        </Panel>
+                    </Button>
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="1"
+              RowDefinitions="Auto,Auto,*,Auto"
+              Margin="24,12,24,8">
+            <Grid ColumnDefinitions="*,Auto">
+                <Border BorderBrush="{DynamicResource InkBrush}"
+                        BorderThickness="2"
+                        CornerRadius="8"
+                        Height="56"
+                        Padding="14,0"
+                        Background="Transparent">
+                    <TextBox BorderThickness="0"
+                             Background="Transparent"
+                             Watermark="https://"
+                             Text="{Binding Url}"
+                             VerticalAlignment="Center"
+                             VerticalContentAlignment="Center">
+                        <TextBox.KeyBindings>
+                            <KeyBinding Gesture="Enter" Command="{Binding FetchCommand}" />
+                        </TextBox.KeyBindings>
+                    </TextBox>
+                </Border>
+                <Button Grid.Column="1"
+                        Classes="fetch"
+                        Margin="16,0,0,0"
+                        Height="56"
+                        VerticalAlignment="Stretch"
+                        IsEnabled="{Binding IsBusy, Converter={x:Static BoolConverters.Not}}"
+                        Command="{Binding FetchCommand}">
+                    <TextBlock Text="{Binding FetchLabel}"
+                               FontFamily="{StaticResource Plex}"
+                               FontSize="16"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource FetchTextBrush}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+                </Button>
+            </Grid>
+
+            <TextBlock Grid.Row="1"
+                       Margin="0,8,0,0"
+                       Text="{Binding Error}"
+                       IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                       FontFamily="{StaticResource Plex}"
+                       FontSize="14"
+                       FontWeight="Medium"
+                       TextWrapping="Wrap" />
+
+            <Grid Grid.Row="2"
+                  Margin="0,16,0,0"
+                  SizeChanged="OnPreviewSizeChanged">
+                <TextBlock Text="Paste a link, then Fetch."
+                           IsVisible="{Binding ShowEmptyHint}"
+                           FontFamily="{StaticResource Plex}"
+                           FontSize="16"
+                           FontWeight="Medium"
+                           Foreground="{DynamicResource InkBrush}" />
+                <TextBlock Text="{Binding ProgressText}"
+                           IsVisible="{Binding IsProbing}"
+                           FontFamily="{StaticResource Plex}"
+                           FontSize="16"
+                           FontWeight="Medium"
+                           Foreground="{DynamicResource InkBrush}" />
+
+                <Panel IsVisible="{Binding IsSinglePreview}">
+                    <Border Background="#1A1A1A" ClipToBounds="True">
+                        <Image Source="{Binding Hero.Image}"
+                               Stretch="Uniform"
+                               HorizontalAlignment="Stretch"
+                               VerticalAlignment="Stretch"
+                               IsVisible="{Binding Hero.Image, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    </Border>
+                    <Border HorizontalAlignment="Left"
+                            VerticalAlignment="Bottom"
+                            Margin="12"
+                            Background="#CC000000"
+                            CornerRadius="4"
+                            Padding="8,3">
+                        <TextBlock Text="{Binding Hero.Overlay}"
+                                   Foreground="White"
+                                   FontSize="14"
+                                   FontWeight="Bold" />
+                    </Border>
+                </Panel>
+
+                <ScrollViewer IsVisible="{Binding HasManyPreviews}"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
+                        <ItemsControl ItemsSource="{Binding PreviewCards}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:PreviewCard">
+                                    <controls:Card Width="{Binding TileWidth}"
+                                                   Margin="0,0,16,16"
+                                                   Padding="0">
+                                        <StackPanel>
+                                            <Panel Height="{Binding TileImageHeight}"
+                                                   ClipToBounds="True">
+                                                <Border Background="#1A1A1A" />
+                                                <Image Source="{Binding Image}"
+                                                       Stretch="UniformToFill"
+                                                       IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                <Border HorizontalAlignment="Left"
+                                                        VerticalAlignment="Bottom"
+                                                        Margin="8"
+                                                        Background="#CC000000"
+                                                        CornerRadius="4"
+                                                        Padding="6,2">
+                                                    <TextBlock Text="{Binding Overlay}"
+                                                               Foreground="White"
+                                                               FontSize="12"
+                                                               FontWeight="Bold" />
+                                                </Border>
+                                            </Panel>
+                                            <TextBlock Text="{Binding Title}"
+                                                       Margin="12,8,12,12"
+                                                       TextWrapping="Wrap"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       MaxHeight="40"
+                                                       FontSize="14"
+                                                       FontWeight="Medium" />
+                                        </StackPanel>
+                                    </controls:Card>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="{Binding MoreLabel}"
+                                   IsVisible="{Binding HasMore}"
                                    FontFamily="{StaticResource Plex}"
                                    FontSize="14"
-                                   LetterSpacing="1.2"
-                                   Foreground="#FFFFFF"
-                                   VerticalAlignment="Center" />
+                                   FontWeight="Medium"
+                                   Margin="0,0,0,8" />
                     </StackPanel>
-
-                    <StackPanel Orientation="Horizontal"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center"
-                                Spacing="2"
-                                Margin="0,0,6,0">
-                        <Button Classes="caption" Click="OnMinimizeClick">
-                            <Rectangle Width="11"
-                                       Height="1.4"
-                                       Fill="#FFFFFF"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center" />
-                        </Button>
-                        <Button Classes="caption" Click="OnCloseClick">
-                            <Path Stroke="#FFFFFF"
-                                  StrokeThickness="1.4"
-                                  StrokeLineCap="Round"
-                                  Width="11"
-                                  Height="11"
-                                  Stretch="None"
-                                  HorizontalAlignment="Center"
-                                  VerticalAlignment="Center"
-                                  Data="M 1,1 L 10,10 M 10,1 L 1,10" />
-                        </Button>
-                    </StackPanel>
-                </Grid>
-
-                <Grid Grid.Row="1"
-                      RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto,Auto"
-                      Margin="6,22,6,0">
-
-                    <TextBlock Grid.Row="0" Classes="eyebrow" Text="LINK" />
-                    <TextBox Grid.Row="1"
-                             Margin="0,8,0,0"
-                             Watermark="https://"
-                             Text="{Binding Url}" />
-
-                    <StackPanel Grid.Row="2"
-                                Margin="0,16,0,0"
-                                IsVisible="{Binding HasResult}"
-                                Spacing="4">
-                        <TextBlock Text="{Binding Title}"
-                                   FontFamily="{StaticResource Plex}"
-                                   FontSize="15"
-                                   TextAlignment="Center"
-                                   TextWrapping="Wrap"
-                                   Foreground="#FFFFFF" />
-                        <TextBlock Text="{Binding Summary}"
-                                   FontFamily="{StaticResource Plex}"
-                                   FontSize="12"
-                                   TextAlignment="Center"
-                                   Foreground="#FFFFFF"
-                                   Opacity="1" />
-                    </StackPanel>
-
-                    <StackPanel Grid.Row="3"
-                                Margin="0,22,0,0"
-                                IsVisible="{Binding ShowVideo}">
-                        <TextBlock Classes="eyebrow" Text="VIDEO" />
-                        <Button Classes="cycle"
-                                Content="{Binding QualityLabel}"
-                                Command="{Binding CycleQualityCommand}" />
-                    </StackPanel>
-
-                    <StackPanel Grid.Row="4" Margin="0,18,0,0">
-                        <TextBlock Classes="eyebrow" Text="FOLDER" />
-                        <Button Classes="cycle"
-                                Content="{Binding FolderLabel}"
-                                Command="{Binding PickFolderCommand}" />
-                    </StackPanel>
-
-                    <StackPanel Grid.Row="5"
-                                Margin="0,18,0,0"
-                                IsVisible="{Binding ShowLogin}">
-                        <TextBlock Classes="eyebrow" Text="LOGIN" />
-                        <Button Classes="cycle"
-                                Content="{Binding LoginLabel}"
-                                Command="{Binding ToggleLoginCommand}" />
-                    </StackPanel>
-
-                    <TextBlock Grid.Row="6"
-                               Margin="0,16,0,0"
-                               Text="{Binding Error}"
-                               IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                               FontFamily="{StaticResource Plex}"
-                               FontSize="12"
-                               TextAlignment="Center"
-                               TextWrapping="Wrap"
-                               Foreground="#FFFFFF" />
-
-                    <Button Grid.Row="8"
-                            Classes="primary"
-                            VerticalAlignment="Bottom"
-                            Margin="0,12,0,0"
-                            Content="{Binding ActionLabel}"
-                            Command="{Binding FetchOrStopCommand}" />
-
-                    <StackPanel Grid.Row="9"
-                                Margin="0,12,0,0"
-                                IsVisible="{Binding ShowProgress}"
-                                Spacing="6">
-                        <ProgressBar Value="{Binding Progress}" />
-                        <TextBlock Text="{Binding ProgressText}"
-                                   FontFamily="{StaticResource Plex}"
-                                   FontSize="11"
-                                   LetterSpacing="1.2"
-                                   HorizontalAlignment="Center"
-                                   Foreground="#FFFFFF" />
-                    </StackPanel>
-                </Grid>
+                </ScrollViewer>
             </Grid>
-        </controls:CutCornerFrame>
-    </controls:CutCornerFrame>
+
+            <Grid Grid.Row="3"
+                  ColumnDefinitions="*,Auto"
+                  Margin="0,12,0,0"
+                  IsVisible="{Binding HasPreview}">
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Title}"
+                               FontFamily="{StaticResource Plex}"
+                               FontSize="18"
+                               FontWeight="Medium"
+                               TextWrapping="Wrap"
+                               TextTrimming="CharacterEllipsis"
+                               MaxHeight="48" />
+                    <TextBlock Text="{Binding Summary}"
+                               Margin="0,4,0,0"
+                               FontFamily="{StaticResource Plex}"
+                               FontSize="13"
+                               FontWeight="Medium"
+                               Foreground="{DynamicResource MutedBrush}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Classes="fetch"
+                        Margin="16,0,0,0"
+                        VerticalAlignment="Center"
+                        IsEnabled="{Binding CanDownload}"
+                        Command="{Binding DownloadCommand}">
+                    <TextBlock Text="{Binding DownloadLabel}"
+                               FontFamily="{StaticResource Plex}"
+                               FontSize="16"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource FetchTextBrush}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+                </Button>
+            </Grid>
+        </Grid>
+
+        <StackPanel Grid.Row="2"
+                    Margin="24,0,24,16"
+                    Spacing="8"
+                    IsVisible="{Binding ShowProgress}">
+            <ProgressBar Height="6"
+                         Minimum="0"
+                         Maximum="100"
+                         IsIndeterminate="{Binding ProgressIsIndeterminate}"
+                         Value="{Binding Progress}"
+                         Foreground="{DynamicResource InkBrush}" />
+            <TextBlock Text="{Binding ProgressText}"
+                       FontFamily="{StaticResource Plex}"
+                       FontSize="13"
+                       FontWeight="Medium"
+                       Foreground="{DynamicResource InkBrush}" />
+        </StackPanel>
+    </Grid>
 </Window>
