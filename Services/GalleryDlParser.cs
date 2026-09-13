@@ -140,12 +140,14 @@ public static class GalleryDlParser
 
     private static string? ThumbnailFor(JsonElement payload, string? mediaUrl, bool isVideo)
     {
-        var explicitThumb = ReadString(payload, "thumbnail")
-                            ?? ReadString(payload, "thumbnail_url")
-                            ?? ReadString(payload, "display_url");
-        if (!string.IsNullOrWhiteSpace(explicitThumb))
-            return explicitThumb;
-        return isVideo ? null : mediaUrl;
+        var picked = ThumbnailUrl.Pick(
+            ReadString(payload, "thumbnail"),
+            ReadString(payload, "thumbnail_url"),
+            mediaUrl,
+            ReadString(payload, "display_url"));
+        if (picked is not null)
+            return picked;
+        return isVideo ? null : ThumbnailUrl.Pick(mediaUrl);
     }
 
     private static TimeSpan? ReadDuration(JsonElement root)

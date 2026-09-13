@@ -9,6 +9,8 @@ namespace FetchIt;
 
 public partial class App : Application
 {
+    internal static SingleInstance? SingleInstance { get; set; }
+
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
     public override void OnFrameworkInitializationCompleted()

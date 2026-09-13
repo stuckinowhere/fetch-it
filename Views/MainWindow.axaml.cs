@@ -1,6 +1,8 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using FetchIt.Models;
 using FetchIt.Services;
 using FetchIt.ViewModels;
@@ -17,6 +19,7 @@ public partial class MainWindow : Window, IUiHost
         Activated += OnActivated;
         Opened += OnOpened;
         SizeChanged += OnWindowSizeChanged;
+        App.SingleInstance?.Watch(() => Dispatcher.UIThread.Post(ShowExisting));
     }
 
     protected override void OnDataContextChanged(EventArgs e)
@@ -85,8 +88,21 @@ public partial class MainWindow : Window, IUiHost
     private async void OnOpened(object? sender, EventArgs e)
     {
         Opened -= OnOpened;
-        if (DataContext is MainViewModel vm)
+        if (DataContext is not MainViewModel vm)
+            return;
+        await Task.Delay(1200);
+        if (IsVisible)
             await vm.CheckUpdatesOnLaunchAsync();
+    }
+
+    private void ShowExisting()
+    {
+        if (WindowState == WindowState.Minimized)
+            WindowState = WindowState.Normal;
+        Show();
+        Activate();
+        Topmost = true;
+        Topmost = false;
     }
 
     private void OnPreviewSizeChanged(object? sender, SizeChangedEventArgs e)

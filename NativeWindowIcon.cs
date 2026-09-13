@@ -26,8 +26,7 @@ internal static class NativeWindowIcon
         void ApplyNow() => Apply(window);
         window.Opened += (_, _) => ApplyNow();
         ApplyNow();
-        foreach (var delay in new[] { 300, 1000, 2500, 6000 })
-            DispatcherTimer.RunOnce(ApplyNow, TimeSpan.FromMilliseconds(delay));
+        DispatcherTimer.RunOnce(ApplyNow, TimeSpan.FromMilliseconds(400));
     }
 
     public static void Apply(Window window)

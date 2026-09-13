@@ -47,6 +47,15 @@ public class ParserTests
         Assert.Equal("https://a/big.jpg", Assert.Single(probe.Items).ThumbnailUrl);
     }
 
+    [Fact]
+    public void YtDlp_prefers_mid_thumbnail_over_huge()
+    {
+        const string json =
+            """{"title":"t","ext":"mp4","extractor_key":"Youtube","thumbnails":[{"url":"https://a/huge.jpg","width":4096},{"url":"https://a/mid.jpg","width":480}]}""";
+        var probe = YtDlpParser.Parse(json);
+        Assert.Equal("https://a/mid.jpg", Assert.Single(probe.Items).ThumbnailUrl);
+    }
+
     [Theory]
     [InlineData("Odnoklassniki", "OK.ru")]
     [InlineData("TikTok", "TikTok")]
@@ -104,6 +113,15 @@ public class ParserTests
         Assert.Equal("https://example.com/a.jpg", probe.Items[0].ThumbnailUrl);
         Assert.Equal("https://example.com/a.jpg", probe.Items[0].DownloadUrl);
         Assert.Equal("https://example.com/d.jpg", probe.Items[3].ThumbnailUrl);
+    }
+
+    [Fact]
+    public void GalleryDl_skips_pic_twitter_display_url()
+    {
+        const string json =
+            """[3, "https://pbs.twimg.com/media/abc.jpg", {"category":"twitter","extension":"jpg","type":"photo","display_url":"https://pic.twitter.com/xyz","thumbnail":"https://pic.twitter.com/xyz"}]""";
+        var probe = GalleryDlParser.Parse(json);
+        Assert.Equal("https://pbs.twimg.com/media/abc.jpg", Assert.Single(probe.Items).ThumbnailUrl);
     }
 
     [Fact]
