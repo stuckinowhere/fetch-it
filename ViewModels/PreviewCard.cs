@@ -2,6 +2,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using FetchIt.Models;
+using FetchIt.Services;
 
 namespace FetchIt.ViewModels;
 
@@ -40,41 +41,57 @@ public sealed partial class PreviewCard : ObservableObject, IDisposable
 
     private async Task LoadAsync(string url, CancellationToken token)
     {
-        try
+        foreach (var candidate in ThumbnailUrl.Candidates(url))
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            if (NeedsXReferer(url))
-                request.Headers.Referrer = new Uri("https://x.com/");
-            using var response = await Http.SendAsync(request, token).ConfigureAwait(false);
-            response.EnsureSuccessStatusCode();
-            await using var stream = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
-            var ms = new MemoryStream();
-            await stream.CopyToAsync(ms, token).ConfigureAwait(false);
-            ms.Position = 0;
-            var bitmap = await Dispatcher.UIThread.InvokeAsync(() => new Bitmap(ms));
-            if (token.IsCancellationRequested)
+            if (!ThumbnailUrl.LooksLikeImage(candidate))
+                continue;
+            try
             {
-                bitmap.Dispose();
+                using var request = new HttpRequestMessage(HttpMethod.Get, candidate);
+                var referer = ThumbnailUrl.RefererFor(candidate);
+                if (referer is not null)
+                    request.Headers.Referrer = referer;
+                using var response = await Http.SendAsync(request, token).ConfigureAwait(false);
+                if (!response.IsSuccessStatusCode)
+                    continue;
+                var type = response.Content.Headers.ContentType?.MediaType ?? "";
+                if (type.StartsWith("text/", StringComparison.OrdinalIgnoreCase)
+                    || type.Contains("json", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                await using var stream = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
+                var ms = new MemoryStream();
+                await stream.CopyToAsync(ms, token).ConfigureAwait(false);
+                if (ms.Length < 32)
+                    continue;
+                ms.Position = 0;
+                var bitmap = await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    try
+                    {
+                        return Bitmap.DecodeToWidth(ms, 960);
+                    }
+                    catch
+                    {
+                        ms.Position = 0;
+                        return new Bitmap(ms);
+                    }
+                });
+                if (token.IsCancellationRequested)
+                {
+                    bitmap.Dispose();
+                    return;
+                }
+
+                Image = bitmap;
                 return;
             }
-
-            Image = bitmap;
-        }
-        catch
-        {
+            catch
+            {
+            }
         }
     }
 
-    internal static bool NeedsXReferer(string url)
-    {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
-            return false;
-        var host = uri.Host.Trim().ToLowerInvariant();
-        if (host.StartsWith("www."))
-            host = host[4..];
-        return host is "pbs.twimg.com" or "video.twimg.com" or "twimg.com"
-            or "x.com" or "twitter.com" or "mobile.twitter.com" or "mobile.x.com";
-    }
+    internal static bool NeedsXReferer(string url) => ThumbnailUrl.NeedsXReferer(url);
 
     public void Dispose()
     {

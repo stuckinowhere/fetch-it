@@ -221,9 +221,10 @@ public static class YtDlpParser
                 size = w;
             else if (thumb.TryGetProperty("height", out var height) && height.TryGetInt32(out var h))
                 size = h;
-            if (size >= bestSize)
+            var score = ThumbnailUrl.ScoreThumbWidth(size);
+            if (score >= bestSize)
             {
-                bestSize = size;
+                bestSize = score;
                 best = url;
             }
         }
