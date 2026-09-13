@@ -19,6 +19,12 @@
                    FontSize="16"
                    FontWeight="Medium"
                    TextWrapping="Wrap" />
+        <ProgressBar x:Name="DownloadProgress"
+                     Height="6"
+                     Minimum="0"
+                     Maximum="100"
+                     IsVisible="False"
+                     Foreground="{DynamicResource InkBrush}" />
         <Grid ColumnDefinitions="*,Auto,Auto">
             <Button x:Name="LaterButton"
                     Grid.Column="1"
@@ -33,7 +39,7 @@
                     MinWidth="120"
                     Click="OnPrimaryClick">
                 <TextBlock x:Name="PrimaryLabel"
-                           Text="Download"
+                           Text="Install"
                            FontFamily="{StaticResource Plex}"
                            FontSize="16"
                            FontWeight="Bold"
