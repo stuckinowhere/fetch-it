@@ -48,7 +48,7 @@ If PowerShell blocks scripts: `Set-ExecutionPolicy -Scope Process Bypass`.
 - **Download** — save files after Fetch finishes. Shows speed and how much is left. Becomes **Stop** while saving.
 - Folder icon — where files go. Defaults to your Windows Downloads folder (including if you moved it). Remembers the last folder you pick.
 - Theme icon — light or dark.
-- Update icon — check GitHub Releases. On launch the app does this quietly and only prompts when a newer setup exists.
+- Update icon — check GitHub Releases. On launch the app does this quietly and only prompts when a newer setup exists. **Install** downloads that setup, runs it, and reopens the app.
 - Instagram may ask you to sign in in a small window. Chrome can stay open. No password is stored.
 
 A post with several files is saved in the folder you picked, next to each other.
@@ -72,11 +72,11 @@ After this branch is on `main`:
 ```powershell
 git checkout main
 git pull
-git tag v1.1.4
-git push origin v1.1.4
+git tag v1.1.5
+git push origin v1.1.5
 ```
 
-That runs `.github/workflows/release.yml`, which tests, publishes a self-contained win-x64 build, fetches tools, and creates a GitHub Release with `fetch-it-v1.1.4-win-x64-setup.exe` and `fetch-it-v1.1.4-win-x64.zip`.
+That runs `.github/workflows/release.yml`, which tests, publishes a self-contained win-x64 build, fetches tools, and creates a GitHub Release with `fetch-it-v1.1.5-win-x64-setup.exe` and `fetch-it-v1.1.5-win-x64.zip`.
 
 To build the installer locally (needs [Inno Setup 6](https://jrsoftware.org/isinfo.php)):
 
