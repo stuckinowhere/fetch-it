@@ -99,7 +99,8 @@ public sealed class GalleryDlService
         IReadOnlyList<(string Url, string Path)> jobs,
         IProgress<FetchProgress> progress,
         CancellationToken cancellationToken,
-        HttpClient? http)
+        HttpClient? http,
+        int maxParallel = DirectParallel)
     {
         var owns = http is null;
         SocketsHttpHandler? handler = null;
@@ -158,7 +159,7 @@ public sealed class GalleryDlService
 
         try
         {
-            var firstParallel = total <= 1 ? 1 : Math.Min(DirectParallel, total);
+            var firstParallel = total <= 1 ? 1 : Math.Min(Math.Max(1, maxParallel), total);
             await AttemptAsync(leftover, firstParallel).ConfigureAwait(false);
             if (leftover.Count > 0)
                 await AttemptAsync(leftover, 1).ConfigureAwait(false);

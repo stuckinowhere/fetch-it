@@ -96,6 +96,9 @@ public class GofileTests
         Assert.Equal(
             "https://store5.gofile.io/download/web/b/two.mp4",
             GofileService.HttpsLink("http://store5.gofile.io/download/web/b/two.mp4"));
+        Assert.Equal(
+            "https://store5.gofile.io/a.mp4?token=abc",
+            GofileService.WithAccountToken("https://store5.gofile.io/a.mp4", "abc"));
     }
 
     [Fact]
