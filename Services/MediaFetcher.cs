@@ -6,6 +6,7 @@ public sealed class MediaFetcher
 {
     private readonly YtDlpService _yt = new();
     private readonly GalleryDlService _gallery = new();
+    private readonly GofileService _gofile = new();
 
     public async Task<MediaProbe> ProbeAsync(
         string url,
@@ -21,6 +22,9 @@ public sealed class MediaFetcher
             progress?.Report(new FetchProgress { Status = "Reading public profile…" });
         else
             progress?.Report(new FetchProgress { Status = "Reading link…" });
+
+        if (MediaRouter.IsGofile(uri))
+            return await _gofile.ProbeAsync(url, progress, cancellationToken).ConfigureAwait(false);
 
         var first = MediaRouter.Prefer(uri);
         try
@@ -56,6 +60,8 @@ public sealed class MediaFetcher
         CancellationToken cancellationToken)
     {
         var publicUrl = MediaRouter.CanonicalPublicUrl(url);
+        if (MediaRouter.TryParseHttpUrl(publicUrl, out var uri) && MediaRouter.IsGofile(uri))
+            return _gofile.DownloadAsync(url, folder, probe, duplicate, progress, cancellationToken);
         return probe.Engine == EngineKind.GalleryDl
             ? _gallery.DownloadAsync(publicUrl, folder, probe, duplicate, progress, cancellationToken)
             : _yt.DownloadAsync(publicUrl, folder, probe.Title, probe.FileCount, duplicate, progress, cancellationToken);

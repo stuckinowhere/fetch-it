@@ -15,6 +15,7 @@ public class MediaRouterTests
     [InlineData("https://www.dailymotion.com/video/x7tgad0", true, "YtDlp")]
     [InlineData("https://www.reddit.com/r/videos/comments/abc/title/", true, "YtDlp")]
     [InlineData("https://www.facebook.com/watch/?v=1", true, "YtDlp")]
+    [InlineData("https://gofile.io/d/Soimwa", true, "YtDlp")]
     [InlineData("https://x.com/user/status/1", true, "GalleryDl")]
     [InlineData("https://twitter.com/user/status/1", true, "GalleryDl")]
     [InlineData("https://mobile.twitter.com/user/status/1", true, "GalleryDl")]
