@@ -94,6 +94,8 @@ public static class MediaRouter
             or "mobile.twitter.com" or "mobile.x.com";
     }
 
+    public static bool IsGofile(Uri uri) => NormalizedHost(uri) == "gofile.io";
+
     private static bool IsOkRuHost(Uri uri)
     {
         var host = NormalizedHost(uri);

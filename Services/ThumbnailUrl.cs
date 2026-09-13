@@ -97,6 +97,8 @@ public static class ThumbnailUrl
         if (host is "pbs.twimg.com" or "video.twimg.com" or "twimg.com"
             or "x.com" or "twitter.com" or "mobile.twitter.com" or "mobile.x.com")
             return new Uri("https://x.com/");
+        if (host is "gofile.io" || host.Contains("gofile", StringComparison.OrdinalIgnoreCase))
+            return new Uri("https://gofile.io/");
         if (host.Contains("cdninstagram", StringComparison.OrdinalIgnoreCase)
             || host.Contains("fbcdn", StringComparison.OrdinalIgnoreCase)
             || host.StartsWith("scontent", StringComparison.OrdinalIgnoreCase)

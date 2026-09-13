@@ -89,21 +89,34 @@ public sealed class GalleryDlService
         return jobs;
     }
 
-    private static async Task DownloadDirectAsync(
+    internal static Task DownloadDirectAsync(
         IReadOnlyList<(string Url, string Path)> jobs,
         IProgress<FetchProgress> progress,
         CancellationToken cancellationToken)
-    {
-        using var handler = new SocketsHttpHandler
-        {
-            MaxConnectionsPerServer = DirectParallel,
-            PooledConnectionLifetime = TimeSpan.FromMinutes(2)
-        };
-        using var http = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(2) };
-        http.DefaultRequestHeaders.TryAddWithoutValidation(
-            "User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
+        => DownloadDirectAsync(jobs, progress, cancellationToken, http: null);
 
+    internal static async Task DownloadDirectAsync(
+        IReadOnlyList<(string Url, string Path)> jobs,
+        IProgress<FetchProgress> progress,
+        CancellationToken cancellationToken,
+        HttpClient? http)
+    {
+        var owns = http is null;
+        SocketsHttpHandler? handler = null;
+        if (owns)
+        {
+            handler = new SocketsHttpHandler
+            {
+                MaxConnectionsPerServer = DirectParallel,
+                PooledConnectionLifetime = TimeSpan.FromMinutes(2)
+            };
+            http = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(2) };
+            http.DefaultRequestHeaders.TryAddWithoutValidation(
+                "User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
+        }
+
+        var client = http!;
         var leftover = jobs.ToList();
         var total = jobs.Count;
         var done = 0;
@@ -122,7 +135,7 @@ public sealed class GalleryDlService
                 {
                     try
                     {
-                        await SaveOneAsync(http, job.Url, job.Path, token).ConfigureAwait(false);
+                        await SaveOneAsync(client, job.Url, job.Path, token).ConfigureAwait(false);
                         var n = Interlocked.Increment(ref done);
                         progress.Report(new FetchProgress
                         {
@@ -143,15 +156,26 @@ public sealed class GalleryDlService
             leftover = failed.ToList();
         }
 
-        var firstParallel = total <= 1 ? 1 : Math.Min(DirectParallel, total);
-        await AttemptAsync(leftover, firstParallel).ConfigureAwait(false);
-        if (leftover.Count > 0)
-            await AttemptAsync(leftover, 1).ConfigureAwait(false);
+        try
+        {
+            var firstParallel = total <= 1 ? 1 : Math.Min(DirectParallel, total);
+            await AttemptAsync(leftover, firstParallel).ConfigureAwait(false);
+            if (leftover.Count > 0)
+                await AttemptAsync(leftover, 1).ConfigureAwait(false);
 
-        if (done == 0)
-            throw new InvalidOperationException("Could not save those files.");
-        if (leftover.Count > 0)
-            throw new InvalidOperationException($"Saved {done} of {total} files.");
+            if (done == 0)
+                throw new InvalidOperationException("Could not save those files.");
+            if (leftover.Count > 0)
+                throw new InvalidOperationException($"Saved {done} of {total} files.");
+        }
+        finally
+        {
+            if (owns)
+            {
+                client.Dispose();
+                handler?.Dispose();
+            }
+        }
     }
 
     private static async Task SaveOneAsync(
