@@ -61,6 +61,7 @@ public class MediaRouterTests
         Assert.False(MediaRouter.LooksPrivate("Login required"));
         Assert.True(MediaRouter.LooksLikeMissingSession("'401 Unauthorized' for feed"));
         Assert.True(MediaRouter.LooksLikeMissingSession("HTTP redirect to login page"));
+        Assert.False(MediaRouter.LooksLikeMissingSession("""{"favorite_count":401,"type":"photo"}"""));
         Assert.Equal("Only public profiles.", MediaRouter.PublicOnlyMessage);
         Assert.Equal(
             "Instagram hid the posts. Sign in when asked. Chrome can stay open.",

@@ -39,6 +39,8 @@ public sealed class MediaFetcher
         }
         catch
         {
+            if (MediaRouter.IsGalleryHost(uri))
+                throw;
             var second = first == EngineKind.YtDlp ? EngineKind.GalleryDl : EngineKind.YtDlp;
             progress?.Report(new FetchProgress { Status = "Trying another reader…" });
             return await RunProbe(second, publicUrl, progress, cancellationToken).ConfigureAwait(false);

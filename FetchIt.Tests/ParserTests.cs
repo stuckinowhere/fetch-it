@@ -107,6 +107,23 @@ public class ParserTests
     }
 
     [Fact]
+    public void GalleryDl_keeps_x_photos_when_counts_contain_401()
+    {
+        var json = """
+            [
+              [2, {"category": "twitter", "content": "post", "favorite_count": 401}],
+              [3, "https://example.com/a.jpg", {"category": "twitter", "extension": "jpg", "type": "photo", "favorite_count": 401}],
+              [3, "https://example.com/b.jpg", {"category": "twitter", "extension": "jpg", "type": "photo", "favorite_count": 401}],
+              [3, "https://example.com/c.jpg", {"category": "twitter", "extension": "jpg", "type": "photo", "favorite_count": 401}]
+            ]
+            """;
+        Assert.False(MediaRouter.LooksLikeMissingSession(json));
+        var probe = GalleryDlParser.Parse(json);
+        Assert.Equal(3, probe.ImageCount);
+        Assert.Equal(0, probe.VideoCount);
+    }
+
+    [Fact]
     public void GalleryDl_parses_x_mixed_photo_and_video()
     {
         var probe = GalleryDlParser.Parse(Fixture("twitter-mixed.json"));

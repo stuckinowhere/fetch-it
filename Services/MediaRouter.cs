@@ -70,7 +70,9 @@ public static class MediaRouter
            || text.Contains("private account", StringComparison.OrdinalIgnoreCase);
 
     public static bool LooksLikeMissingSession(string text)
-        => text.Contains("401", StringComparison.Ordinal)
+        => text.Contains("401 Unauthorized", StringComparison.OrdinalIgnoreCase)
+           || text.Contains("'401", StringComparison.Ordinal)
+           || text.Contains("\"401", StringComparison.Ordinal)
            || text.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase)
            || text.Contains("login page", StringComparison.OrdinalIgnoreCase)
            || text.Contains("Permission denied", StringComparison.OrdinalIgnoreCase)

@@ -32,13 +32,12 @@ public sealed class GalleryDlService
 
         var text = await ProcessRunner.RunTextAsync(
             tools.GalleryDl, args, cancellationToken, tools.GalleryEnvironment).ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(text) || LooksLikeFailure(text) || MediaRouter.LooksPrivate(text)
-            || MediaRouter.LooksLikeMissingSession(text))
+        if (string.IsNullOrWhiteSpace(text) || LooksLikeFailure(text))
             throw new InvalidOperationException(ShortError(url, text));
         var probe = GalleryDlParser.Parse(text);
-        if (probe.FileCount == 0 || probe.Items.Count == 0)
-            throw new InvalidOperationException(ShortError(url, text));
-        return probe;
+        if (probe.FileCount > 0 && probe.Items.Count > 0)
+            return probe;
+        throw new InvalidOperationException(ShortError(url, text));
     }
 
     public async Task DownloadAsync(
