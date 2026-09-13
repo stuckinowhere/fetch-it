@@ -21,12 +21,14 @@ public sealed class YtDlpService
             "--no-download",
             "--no-warnings",
             "--ignore-no-formats-error",
-            "--socket-timeout", "45",
+            "--socket-timeout", "12",
+            "--force-ipv4",
             "--ffmpeg-location", tools.FfmpegDir
         };
         args.Add(url);
 
-        var text = await ProcessRunner.RunTextAsync(tools.YtDlp, args, cancellationToken).ConfigureAwait(false);
+        var text = await ProcessRunner.RunTextAsync(
+            tools.YtDlp, args, cancellationToken, timeout: TimeSpan.FromSeconds(15)).ConfigureAwait(false);
         if (LooksLikeFailure(text))
             throw new InvalidOperationException(ShortError(text));
         return YtDlpParser.Parse(text);
@@ -58,6 +60,7 @@ public sealed class YtDlpService
             "--progress",
             "--no-warnings",
             "--socket-timeout", "45",
+            "--force-ipv4",
             "--ffmpeg-location", tools.FfmpegDir,
             "--windows-filenames",
             "--merge-output-format", "mp4",

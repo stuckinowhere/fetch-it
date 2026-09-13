@@ -28,6 +28,19 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public void GoFile_timeout_asks_for_vpn()
+    {
+        Assert.Equal(8, MainViewModel.ProbeSeconds("https://gofile.io/d/Soimwa"));
+        Assert.Equal(35, MainViewModel.ProbeSeconds("https://youtu.be/dQw4w9WgXcQ"));
+        Assert.Equal(
+            GofileService.UnreachableMessage,
+            MainViewModel.ProbeTimeoutMessage("https://gofile.io/d/Soimwa"));
+        Assert.Equal(
+            "That site took too long. Try again.",
+            MainViewModel.ProbeTimeoutMessage("https://youtu.be/dQw4w9WgXcQ"));
+    }
+
+    [Fact]
     public void Short_hides_json_parser_noise()
     {
         Assert.Equal(

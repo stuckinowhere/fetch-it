@@ -26,6 +26,9 @@ public sealed class MediaFetcher
         if (MediaRouter.IsGofile(uri))
             return await _gofile.ProbeAsync(url, progress, cancellationToken).ConfigureAwait(false);
 
+        if (MediaRouter.IsBunkr(uri) && !MediaRouter.IsBunkrFileOrAlbum(uri))
+            throw new InvalidOperationException(MediaRouter.BunkrHomeMessage);
+
         var first = MediaRouter.Prefer(uri);
         try
         {
@@ -37,7 +40,8 @@ public sealed class MediaFetcher
         }
         catch (InvalidOperationException ex) when (
             ex.Message == MediaRouter.PublicOnlyMessage
-            || ex.Message == MediaRouter.InstagramSessionMessage)
+            || ex.Message == MediaRouter.InstagramSessionMessage
+            || ex.Message.Contains("took too long", StringComparison.OrdinalIgnoreCase))
         {
             throw;
         }
@@ -61,26 +65,24 @@ public sealed class MediaFetcher
     {
         var publicUrl = MediaRouter.CanonicalPublicUrl(url);
         if (MediaRouter.TryParseHttpUrl(publicUrl, out var uri) && MediaRouter.IsGofile(uri))
-            return DownloadGofileAsync(url, publicUrl, folder, probe, duplicate, progress, cancellationToken);
+            return DownloadGofileAsync(probe, url, folder, progress, duplicate, cancellationToken);
         return probe.Engine == EngineKind.GalleryDl
             ? _gallery.DownloadAsync(publicUrl, folder, probe, duplicate, progress, cancellationToken)
             : _yt.DownloadAsync(publicUrl, folder, probe.Title, probe.FileCount, duplicate, progress, cancellationToken);
     }
 
     private async Task DownloadGofileAsync(
-        string url,
-        string publicUrl,
-        string folder,
         MediaProbe probe,
-        DuplicateChoice duplicate,
+        string url,
+        string folder,
         IProgress<FetchProgress> progress,
+        DuplicateChoice duplicate,
         CancellationToken cancellationToken)
     {
         try
         {
             await _gofile.DownloadAsync(url, folder, probe, duplicate, progress, cancellationToken)
                 .ConfigureAwait(false);
-            return;
         }
         catch (OperationCanceledException)
         {
@@ -88,16 +90,17 @@ public sealed class MediaFetcher
         }
         catch (InvalidOperationException ex) when (
             ex.Message.Contains("password", StringComparison.OrdinalIgnoreCase)
-            || ex.Message.Contains("blocked that folder", StringComparison.OrdinalIgnoreCase)
             || ex.Message.Contains("Windows blocked", StringComparison.OrdinalIgnoreCase)
-            || ex.Message == "Not a GoFile link.")
+            || ex.Message == "Not a GoFile link."
+            || ex.Message == GofileService.UnreachableMessage
+            || ex.Message == GofileService.SslMessage)
         {
             throw;
         }
         catch
         {
             progress.Report(new FetchProgress { Status = "Trying another reader…" });
-            await _yt.DownloadAsync(publicUrl, folder, probe.Title, probe.FileCount, duplicate, progress, cancellationToken)
+            await _gallery.DownloadAsync(url, folder, probe, duplicate, progress, cancellationToken)
                 .ConfigureAwait(false);
         }
     }

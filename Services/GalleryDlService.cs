@@ -27,11 +27,13 @@ public sealed class GalleryDlService
             "--range", "1-50",
             "-o", "extractor.instagram.sleep-request=0"
         };
+        AddHostOptions(args, url);
         args.AddRange(cookies.Arguments);
         args.Add(url);
 
         var text = await ProcessRunner.RunTextAsync(
-            tools.GalleryDl, args, cancellationToken, tools.GalleryEnvironment).ConfigureAwait(false);
+            tools.GalleryDl, args, cancellationToken, tools.GalleryEnvironment, TimeSpan.FromSeconds(15))
+            .ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(text) || LooksLikeFailure(text))
             throw new InvalidOperationException(ShortError(url, text));
         var probe = GalleryDlParser.Parse(text);
@@ -276,6 +278,7 @@ public sealed class GalleryDlService
             args.Add("-o");
             args.Add($"filename={{filename}}_{tag}.{{extension}}");
         }
+        AddHostOptions(args, url);
         args.AddRange(cookies.Arguments);
         args.Add(url);
 
@@ -312,6 +315,20 @@ public sealed class GalleryDlService
     {
         var trimmed = text.TrimStart();
         return !trimmed.Contains('{') && !trimmed.Contains('[');
+    }
+
+    internal static void AddHostOptions(List<string> args, string url)
+    {
+        if (!MediaRouter.TryParseHttpUrl(url, out var uri))
+            return;
+        if (MediaRouter.IsBunkr(uri))
+            args.AddRange(["-o", "extractor.bunkr.tlds=true"]);
+        if (!MediaRouter.IsGofile(uri))
+            return;
+        args.AddRange(["-o", "extractor.gofile.salt=" + GofileService.WebsiteSalts[0]]);
+        var token = GofileService.TryReadSavedToken();
+        if (!string.IsNullOrEmpty(token))
+            args.AddRange(["-o", "extractor.gofile.api-token=" + token]);
     }
 
     private static string ShortError(string url, string text)

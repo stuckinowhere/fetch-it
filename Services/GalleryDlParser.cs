@@ -118,7 +118,11 @@ public static class GalleryDlParser
         if (el.ValueKind != JsonValueKind.Object)
             return;
 
-        var url = urlHint ?? ReadString(el, "url") ?? ReadString(el, "display_url");
+        var url = urlHint
+                  ?? ReadString(el, "url")
+                  ?? ReadString(el, "link")
+                  ?? ReadString(el, "directLink")
+                  ?? ReadString(el, "display_url");
         var ext = ReadString(el, "extension") ?? ReadString(el, "ext") ?? ExtFromUrl(url);
         var isVideo = IsVideo(ReadString(el, "type"), ext);
         var title = ReadString(el, "title")
