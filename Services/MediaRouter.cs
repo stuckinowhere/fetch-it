@@ -36,6 +36,8 @@ public static class MediaRouter
     public static string PublicOnlyMessage => "Only public profiles.";
     public static string InstagramSessionMessage =>
         "Instagram hid the posts. Sign in when asked. Chrome can stay open.";
+    public static string BunkrHomeMessage =>
+        "Paste a Bunkr file or album link, not the homepage.";
 
     public static bool IsInstagram(Uri uri) => IsInstagramHost(uri);
 
@@ -90,8 +92,25 @@ public static class MediaRouter
     {
         var host = NormalizedHost(uri);
         return IsSocialPostHost(uri)
+            || IsBunkr(uri)
             || host is "x.com" or "twitter.com"
             or "mobile.twitter.com" or "mobile.x.com";
+    }
+
+    public static bool IsBunkr(Uri uri)
+    {
+        var host = NormalizedHost(uri);
+        return host == "bunkr.cr"
+            || host.StartsWith("bunkr.", StringComparison.Ordinal)
+            || host.StartsWith("bunkrr.", StringComparison.Ordinal);
+    }
+
+    public static bool IsBunkrFileOrAlbum(Uri uri)
+    {
+        if (!IsBunkr(uri))
+            return false;
+        var parts = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2 && parts[0] is "a" or "f" or "v" or "i" or "d";
     }
 
     public static bool IsGofile(Uri uri)

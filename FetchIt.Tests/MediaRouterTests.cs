@@ -22,6 +22,9 @@ public class MediaRouterTests
     [InlineData("https://instagram.com/p/abc", true, "GalleryDl")]
     [InlineData("https://www.instagram.com/stories/x/1", true, "GalleryDl")]
     [InlineData("https://www.threads.net/@x/post/1", true, "GalleryDl")]
+    [InlineData("https://bunkr.cr/v/clip", true, "GalleryDl")]
+    [InlineData("https://bunkr.si/a/album1", true, "GalleryDl")]
+    [InlineData("https://bunkr.cr/", true, "GalleryDl")]
     [InlineData("not a url", false, "YtDlp")]
     [InlineData("ftp://example.com/a", false, "YtDlp")]
     [InlineData("http://www.youtube.com/watch?v=dQw4w9wgXcQ", false, "YtDlp")]
@@ -73,6 +76,12 @@ public class MediaRouterTests
         Assert.True(MediaRouter.IsSocialPostHost(new Uri("https://www.threads.net/@x/post/1")));
         Assert.False(MediaRouter.IsSocialPostHost(new Uri("https://x.com/user/status/1")));
         Assert.True(MediaRouter.IsGalleryHost(new Uri("https://x.com/user/status/1")));
+        Assert.True(MediaRouter.IsBunkr(new Uri("https://bunkr.cr/v/clip")));
+        Assert.True(MediaRouter.IsBunkrFileOrAlbum(new Uri("https://bunkr.cr/f/file.mp4")));
+        Assert.False(MediaRouter.IsBunkrFileOrAlbum(new Uri("https://bunkr.cr/")));
+        Assert.Equal(
+            "Paste a Bunkr file or album link, not the homepage.",
+            MediaRouter.BunkrHomeMessage);
     }
 
     [Fact]

@@ -34,6 +34,41 @@ public class GofileTests
         Assert.NotEqual(
             token,
             GofileService.WebsiteToken(GofileService.UserAgent, "guest-token", 1_777_766_400 + 14400));
+        Assert.NotEqual(
+            token,
+            GofileService.WebsiteToken(
+                GofileService.UserAgent, "guest-token", 1_777_766_400, GofileService.WebsiteSalts[1]));
+    }
+
+    [Fact]
+    public void Curl_api_args_use_ipv4_and_short_timeout()
+    {
+        var args = GofileCdn.CurlApiArgs("https://api.gofile.io/contents/x", "tok", "wt");
+        Assert.Contains("-4", args);
+        Assert.Contains("--connect-timeout", args);
+        Assert.Contains("2", args);
+        Assert.Contains("--max-time", args);
+        Assert.Contains("8", args);
+        Assert.Contains("X-Website-Token: wt", args);
+        Assert.Equal("https://api.gofile.io/contents/x", args[^1]);
+    }
+
+    [Fact]
+    public void Gallery_dl_gets_current_gofile_salt()
+    {
+        var args = new List<string>();
+        GalleryDlService.AddHostOptions(args, "https://gofile.io/d/Soimwa");
+        Assert.Contains("extractor.gofile.salt=12af056dacea0b", args);
+    }
+
+    [Fact]
+    public void Gallery_dump_reads_gofile_link_field()
+    {
+        const string json = """{"category":"gofile","filename":"clip","extension":"mp4","link":"https://store5.gofile.io/download/web/a/clip.mp4"}""";
+        var items = GalleryDlParser.ParseItems(json);
+        Assert.Single(items);
+        Assert.Equal("https://store5.gofile.io/download/web/a/clip.mp4", items[0].Media.DownloadUrl);
+        Assert.Equal(MediaKind.Video, items[0].Media.Kind);
     }
 
     [Fact]
@@ -75,6 +110,7 @@ public class GofileTests
     [InlineData("error-passwordRequired", "That folder needs a password.")]
     [InlineData("error-notFound", "That GoFile folder is gone.")]
     [InlineData("error-notPremium", "GoFile blocked that folder.")]
+    [InlineData("error-rateLimit", "GoFile is busy. Try again in a minute.")]
     public void Maps_gofile_status_to_a_short_error(string status, string message)
         => Assert.Equal(message, GofileService.MessageForStatus(status));
 
@@ -84,7 +120,7 @@ public class GofileTests
         Assert.False(GofileService.TryReadData("gzip", out _, out var error));
         Assert.Null(error);
         Assert.False(GofileService.TryReadData("{nope}", out _, out var bad));
-        Assert.Equal("GoFile is busy. Try again in a minute.", bad);
+        Assert.Equal("Could not read that link.", bad);
     }
 
     [Fact]
@@ -102,6 +138,36 @@ public class GofileTests
     }
 
     [Fact]
+    public void Curl_args_force_http11_ipv4_and_resume()
+    {
+        var args = GofileCdn.CurlArgs("https://store5.gofile.io/a.mp4", @"C:\tmp\a.mp4.part", "tok");
+        Assert.Contains("--http1.1", args);
+        Assert.Contains("-4", args);
+        Assert.Contains("--ssl-no-revoke", args);
+        Assert.Contains("-C", args);
+        Assert.Contains("Authorization: Bearer tok", args);
+        Assert.Contains("accountToken=tok", args);
+        Assert.Equal("https://store5.gofile.io/a.mp4", args[^1]);
+    }
+
+    [Fact]
+    public void Resumes_existing_part_file()
+    {
+        var part = Path.Combine(Path.GetTempPath(), "WasdFetchIt-tests", Guid.NewGuid().ToString("N") + ".part");
+        Directory.CreateDirectory(Path.GetDirectoryName(part)!);
+        File.WriteAllBytes(part, new byte[12]);
+        try
+        {
+            Assert.True(GofileCdn.ShouldResume(part, out var have));
+            Assert.Equal(12, have);
+        }
+        finally
+        {
+            File.Delete(part);
+        }
+    }
+
+    [Fact]
     public void Ssl_errors_map_to_a_retry_line()
     {
         var nested = new HttpRequestException(
@@ -111,5 +177,8 @@ public class GofileTests
         Assert.Equal(
             "GoFile dropped the connection. Try Download again.",
             GofileService.SslMessage);
+        Assert.Equal(
+            "GoFile is blocked on this network. Try a VPN.",
+            GofileService.UnreachableMessage);
     }
 }

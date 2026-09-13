@@ -74,17 +74,31 @@ internal static class ProcessRunner
         string fileName,
         IEnumerable<string> arguments,
         CancellationToken cancellationToken,
-        IReadOnlyDictionary<string, string>? environment = null)
+        IReadOnlyDictionary<string, string>? environment = null,
+        TimeSpan? timeout = null)
     {
-        var builder = new StringBuilder();
-        var code = await RunAsync(fileName, arguments, line =>
-        {
-            builder.AppendLine(line);
-        }, cancellationToken, environment: environment).ConfigureAwait(false);
+        using var linked = timeout is { } limit
+            ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
+            : null;
+        linked?.CancelAfter(timeout!.Value);
+        var ct = linked?.Token ?? cancellationToken;
 
-        var text = builder.ToString();
-        if (code != 0 && string.IsNullOrWhiteSpace(text))
-            throw new InvalidOperationException($"{Path.GetFileName(fileName)} exited {code}.");
-        return text;
+        var builder = new StringBuilder();
+        try
+        {
+            var code = await RunAsync(fileName, arguments, line =>
+            {
+                builder.AppendLine(line);
+            }, ct, environment: environment).ConfigureAwait(false);
+
+            var text = builder.ToString();
+            if (code != 0 && string.IsNullOrWhiteSpace(text))
+                throw new InvalidOperationException($"{Path.GetFileName(fileName)} exited {code}.");
+            return text;
+        }
+        catch (OperationCanceledException) when (timeout is not null && !cancellationToken.IsCancellationRequested)
+        {
+            throw new InvalidOperationException("That site took too long. Try again.");
+        }
     }
 }

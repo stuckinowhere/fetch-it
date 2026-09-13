@@ -187,7 +187,9 @@ public partial class MainViewModel : ViewModelBase
         var version = Interlocked.Increment(ref _probeVersion);
         _probeCts?.Cancel();
         _probeCts = new CancellationTokenSource();
-        var token = _probeCts.Token;
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(_probeCts.Token);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(ProbeSeconds(Url)));
+        var token = timeoutCts.Token;
 
         IsProbing = true;
         ShowWork("Reading link…", indeterminate: true);
@@ -201,8 +203,11 @@ public partial class MainViewModel : ViewModelBase
         }
         catch (OperationCanceledException)
         {
-            if (version == _probeVersion)
-                HideWork();
+            if (version != _probeVersion)
+                return;
+            HideWork();
+            if (!_probeCts.IsCancellationRequested)
+                await FailAsync(ProbeTimeoutMessage(Url));
         }
         catch (Exception ex)
         {
@@ -464,6 +469,14 @@ public partial class MainViewModel : ViewModelBase
             return;
         await Ui.ShowAlertAsync(isError ? "Error" : "Saved", message, isError);
     }
+
+    internal static int ProbeSeconds(string url) =>
+        MediaRouter.TryParseHttpUrl(url, out var uri) && MediaRouter.IsGofile(uri) ? 8 : 35;
+
+    internal static string ProbeTimeoutMessage(string url) =>
+        MediaRouter.TryParseHttpUrl(url, out var uri) && MediaRouter.IsGofile(uri)
+            ? GofileService.UnreachableMessage
+            : "That site took too long. Try again.";
 
     internal static string Short(string message)
     {
