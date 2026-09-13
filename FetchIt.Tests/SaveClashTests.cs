@@ -75,6 +75,93 @@ public class SaveClashTests
     }
 
     [Fact]
+    public void PlanDirectFiles_assigns_names_before_parallel_download()
+    {
+        var dest = Path.Combine(Path.GetTempPath(), "fetchit-plan-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dest);
+        try
+        {
+            var probe = new MediaProbe
+            {
+                Title = "batch",
+                Engine = EngineKind.GalleryDl,
+                Items =
+                [
+                    new MediaItem { Kind = MediaKind.Image, DownloadUrl = "https://example.com/a.jpg" },
+                    new MediaItem { Kind = MediaKind.Image, DownloadUrl = "https://example.com/b.jpg" },
+                    new MediaItem { Kind = MediaKind.Image, DownloadUrl = "https://example.com/c.jpg" }
+                ]
+            };
+            var jobs = GalleryDlService.PlanDirectFiles(dest, probe, DuplicateChoice.Overwrite);
+            Assert.Equal(3, jobs.Count);
+            Assert.Equal(3, jobs.Select(j => j.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+            Assert.True(GalleryDlService.DirectParallel >= 2);
+            Assert.Equal("https://example.com/a.jpg", jobs[0].Url);
+        }
+        finally
+        {
+            Directory.Delete(dest, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void PlanDirectFiles_keeps_item_index_when_a_url_is_missing()
+    {
+        var dest = Path.Combine(Path.GetTempPath(), "fetchit-gap-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dest);
+        try
+        {
+            var probe = new MediaProbe
+            {
+                Title = "mix",
+                Engine = EngineKind.GalleryDl,
+                Items =
+                [
+                    new MediaItem { Kind = MediaKind.Image, DownloadUrl = "https://example.com/a.jpg" },
+                    new MediaItem { Kind = MediaKind.Video },
+                    new MediaItem { Kind = MediaKind.Image, DownloadUrl = "https://example.com/c.jpg" }
+                ]
+            };
+            var jobs = GalleryDlService.PlanDirectFiles(dest, probe, DuplicateChoice.Overwrite);
+            Assert.Equal(2, jobs.Count);
+            Assert.EndsWith("mix_1.jpg", jobs[0].Path, StringComparison.OrdinalIgnoreCase);
+            Assert.EndsWith("mix_3.jpg", jobs[1].Path, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(dest, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Planned_yt_playlist_numbers_each_file()
+    {
+        var probe = new MediaProbe
+        {
+            Title = "Best of",
+            Engine = EngineKind.YtDlp,
+            Items =
+            [
+                new MediaItem { Kind = MediaKind.Video, Title = "One" },
+                new MediaItem { Kind = MediaKind.Video, Title = "Two" },
+                new MediaItem { Kind = MediaKind.Video, Title = "Three" }
+            ]
+        };
+        Assert.Equal(["Best of_001.mp4", "Best of_002.mp4", "Best of_003.mp4"], SaveClash.PlannedNames(probe));
+    }
+
+    [Fact]
+    public void Yt_output_template_numbers_a_batch()
+    {
+        var dest = Path.Combine("D:", "Descargas");
+        var one = YtDlpService.OutputTemplate(dest, "clip", 1, DuplicateChoice.Overwrite);
+        Assert.Equal(Path.Combine(dest, "clip.%(ext)s"), one);
+
+        var many = YtDlpService.OutputTemplate(dest, "Best of", 3, DuplicateChoice.Overwrite);
+        Assert.Equal(Path.Combine(dest, "Best of_%(autonumber)03d.%(ext)s"), many);
+    }
+
+    [Fact]
     public void Duplicate_prompt_names_the_folder_and_files()
     {
         var text = DuplicateWindow.Describe("Descargas", ["one.jpg", "two.jpg"]);

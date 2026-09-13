@@ -77,6 +77,18 @@ public static class ThumbnailUrl
         return uri.ToString();
     }
 
+    public static string ForSave(string url)
+    {
+        if (!TryHttps(url, out var uri))
+            return url;
+
+        var host = Host(uri);
+        if (host is "pbs.twimg.com" or "twimg.com")
+            return TwitterSave(uri, host);
+
+        return uri.ToString();
+    }
+
     public static Uri? RefererFor(string url)
     {
         if (!TryHttps(url, out var uri))
@@ -131,6 +143,20 @@ public static class ThumbnailUrl
         }
 
         return $"https://{host}{path}{uri.Query}";
+    }
+
+    private static string TwitterSave(Uri uri, string host)
+    {
+        var path = TwitterSizeSuffix.Replace(uri.AbsolutePath, "");
+        if (!path.Contains("/media/", StringComparison.OrdinalIgnoreCase))
+            return uri.ToString();
+
+        var file = Path.GetFileNameWithoutExtension(path);
+        var dir = path[..path.LastIndexOf('/')];
+        var ext = Path.GetExtension(path).Trim('.').ToLowerInvariant();
+        if (ext is not ("png" or "webp" or "gif"))
+            ext = "jpg";
+        return $"https://{host}{dir}/{file}?format={ext}&name=orig";
     }
 
     private static bool TryHttps(string? url, out Uri uri)

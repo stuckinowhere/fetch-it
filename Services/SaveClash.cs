@@ -11,7 +11,14 @@ public static class SaveClash
         if (probe.Engine == EngineKind.YtDlp)
         {
             var stem = MediaRouter.SanitizeFolderName(probe.Title);
-            return [$"{stem}.mp4"];
+            var count = Math.Max(1, probe.Items.Count > 0 ? probe.Items.Count : probe.FileCount);
+            if (count <= 1)
+                return [$"{stem}.mp4"];
+
+            var numbered = new List<string>(count);
+            for (var i = 1; i <= count; i++)
+                numbered.Add($"{stem}_{i:D3}.mp4");
+            return numbered;
         }
 
         var title = MediaRouter.SanitizeFolderName(probe.Title);

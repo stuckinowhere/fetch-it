@@ -52,67 +52,171 @@ public sealed class GalleryDlService
         if (!FolderStore.CanWrite(dest))
             throw new InvalidOperationException("Windows blocked that folder. Pick another save folder.");
 
-        var direct = probe.Items
-            .Select(item => item.DownloadUrl)
-            .Where(link => MediaRouter.TryParseHttpUrl(link, out _))
-            .Cast<string>()
-            .ToList();
-        if (direct.Count == probe.Items.Count && direct.Count > 0)
+        var jobs = PlanDirectFiles(dest, probe, duplicate);
+        if (jobs.Count == probe.Items.Count && jobs.Count > 0)
         {
-            await DownloadDirectAsync(dest, probe, direct, duplicate, progress, cancellationToken).ConfigureAwait(false);
+            await DownloadDirectAsync(jobs, progress, cancellationToken).ConfigureAwait(false);
             return;
         }
 
         await DownloadWithToolAsync(url, dest, probe.FileCount, duplicate, progress, cancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task DownloadDirectAsync(
+    internal const int DirectParallel = 4;
+
+    internal static IReadOnlyList<(string Url, string Path)> PlanDirectFiles(
         string dest,
         MediaProbe probe,
-        IReadOnlyList<string> urls,
-        DuplicateChoice duplicate,
+        DuplicateChoice duplicate)
+    {
+        var planned = SaveClash.PlannedNames(probe);
+        var jobs = new List<(string, string)>();
+        for (var i = 0; i < probe.Items.Count; i++)
+        {
+            var raw = probe.Items[i].DownloadUrl;
+            if (raw is null || !MediaRouter.TryParseHttpUrl(raw, out _))
+                continue;
+
+            var fileName = i < planned.Count
+                ? planned[i]
+                : $"{MediaRouter.SanitizeFolderName(probe.Title)}_{i + 1}.jpg";
+            var path = duplicate == DuplicateChoice.KeepBoth
+                ? SaveClash.UniquePath(dest, fileName)
+                : Path.Combine(dest, fileName);
+            jobs.Add((ThumbnailUrl.ForSave(raw), path));
+        }
+
+        return jobs;
+    }
+
+    private static async Task DownloadDirectAsync(
+        IReadOnlyList<(string Url, string Path)> jobs,
         IProgress<FetchProgress> progress,
         CancellationToken cancellationToken)
     {
-        using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
+        using var handler = new SocketsHttpHandler
+        {
+            MaxConnectionsPerServer = DirectParallel,
+            PooledConnectionLifetime = TimeSpan.FromMinutes(2)
+        };
+        using var http = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(2) };
         http.DefaultRequestHeaders.TryAddWithoutValidation(
             "User-Agent",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
 
-        var stem = MediaRouter.SanitizeFolderName(probe.Title);
+        var leftover = jobs.ToList();
+        var total = jobs.Count;
         var done = 0;
-        foreach (var mediaUrl in urls)
+
+        async Task AttemptAsync(IReadOnlyList<(string Url, string Path)> batch, int parallel)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var ext = Path.GetExtension(new Uri(mediaUrl).AbsolutePath).Trim('.');
-            if (string.IsNullOrWhiteSpace(ext))
-                ext = "jpg";
-            var fileName = $"{stem}_{done + 1}.{ext}";
-            var name = duplicate == DuplicateChoice.KeepBoth
-                ? SaveClash.UniquePath(dest, fileName)
-                : Path.Combine(dest, fileName);
-            using var request = new HttpRequestMessage(HttpMethod.Get, mediaUrl);
-            if (NeedsXReferer(mediaUrl))
-                request.Headers.Referrer = new Uri("https://x.com/");
-            using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-                .ConfigureAwait(false);
-            response.EnsureSuccessStatusCode();
-            var tmp = name + ".part";
+            var failed = new System.Collections.Concurrent.ConcurrentBag<(string Url, string Path)>();
+            await Parallel.ForEachAsync(
+                batch,
+                new ParallelOptions
+                {
+                    MaxDegreeOfParallelism = parallel,
+                    CancellationToken = cancellationToken
+                },
+                async (job, token) =>
+                {
+                    try
+                    {
+                        await SaveOneAsync(http, job.Url, job.Path, token).ConfigureAwait(false);
+                        var n = Interlocked.Increment(ref done);
+                        progress.Report(new FetchProgress
+                        {
+                            Percent = 100.0 * n / total,
+                            HasPercent = true,
+                            Status = $"{n} / {total}"
+                        });
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch
+                    {
+                        failed.Add(job);
+                    }
+                }).ConfigureAwait(false);
+            leftover = failed.ToList();
+        }
+
+        var firstParallel = total <= 1 ? 1 : Math.Min(DirectParallel, total);
+        await AttemptAsync(leftover, firstParallel).ConfigureAwait(false);
+        if (leftover.Count > 0)
+            await AttemptAsync(leftover, 1).ConfigureAwait(false);
+
+        if (done == 0)
+            throw new InvalidOperationException("Could not save those files.");
+        if (leftover.Count > 0)
+            throw new InvalidOperationException($"Saved {done} of {total} files.");
+    }
+
+    private static async Task SaveOneAsync(
+        HttpClient http,
+        string mediaUrl,
+        string name,
+        CancellationToken cancellationToken)
+    {
+        Exception? last = null;
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            if (attempt > 0)
+                await Task.Delay(400 * attempt, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await SaveOneOnceAsync(http, mediaUrl, name, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                last = ex;
+            }
+        }
+
+        throw last ?? new InvalidOperationException("Could not save that file.");
+    }
+
+    private static async Task SaveOneOnceAsync(
+        HttpClient http,
+        string mediaUrl,
+        string name,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, mediaUrl);
+        var referer = ThumbnailUrl.RefererFor(mediaUrl);
+        if (referer is not null)
+            request.Headers.Referrer = referer;
+        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        var tmp = name + ".part";
+        try
+        {
             await using (var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
             await using (var output = File.Create(tmp))
                 await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
             File.Move(tmp, name, overwrite: true);
-            done++;
-            progress.Report(new FetchProgress
-            {
-                Percent = 100.0 * done / urls.Count,
-                HasPercent = true,
-                Status = $"{done} / {urls.Count}"
-            });
         }
+        catch
+        {
+            try
+            {
+                if (File.Exists(tmp))
+                    File.Delete(tmp);
+            }
+            catch
+            {
+            }
 
-        if (done == 0)
-            throw new InvalidOperationException("Could not save those files.");
+            throw;
+        }
     }
 
     private async Task DownloadWithToolAsync(
@@ -169,17 +273,6 @@ public sealed class GalleryDlService
 
         if (code != 0 && done == 0)
             throw new InvalidOperationException("Could not save those files.");
-    }
-
-    private static bool NeedsXReferer(string url)
-    {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
-            return false;
-        var host = uri.Host.Trim().ToLowerInvariant();
-        if (host.StartsWith("www."))
-            host = host[4..];
-        return host is "pbs.twimg.com" or "video.twimg.com" or "twimg.com"
-            or "x.com" or "twitter.com";
     }
 
     internal static bool LooksLikeSavedFile(string line)
