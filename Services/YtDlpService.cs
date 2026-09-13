@@ -50,10 +50,7 @@ public sealed class YtDlpService
         if (!FolderStore.CanWrite(dest))
             throw new InvalidOperationException("Windows blocked that folder. Pick another save folder.");
 
-        var stem = MediaRouter.SanitizeFolderName(title);
-        var output = Path.Combine(dest, $"{stem}.%(ext)s");
-        if (duplicate == DuplicateChoice.KeepBoth)
-            output = SaveClash.UniquePath(dest, $"{stem}.mp4").Replace(".mp4", ".%(ext)s", StringComparison.OrdinalIgnoreCase);
+        var output = OutputTemplate(dest, title, fileCount, duplicate);
 
         var args = new List<string>
         {
@@ -67,6 +64,8 @@ public sealed class YtDlpService
             "-f", "bv*+ba/b",
             "-o", output
         };
+        if (fileCount > 1)
+            args.Add("--yes-playlist");
         if (duplicate == DuplicateChoice.Overwrite)
             args.Add("--force-overwrites");
         else
@@ -88,6 +87,28 @@ public sealed class YtDlpService
 
         if (code != 0)
             throw new InvalidOperationException("Could not fetch that video.");
+    }
+
+    internal static string OutputTemplate(
+        string dest,
+        string title,
+        int fileCount,
+        DuplicateChoice duplicate)
+    {
+        var stem = MediaRouter.SanitizeFolderName(title);
+        if (fileCount <= 1)
+        {
+            var single = Path.Combine(dest, $"{stem}.%(ext)s");
+            if (duplicate != DuplicateChoice.KeepBoth)
+                return single;
+            return SaveClash.UniquePath(dest, $"{stem}.mp4")
+                .Replace(".mp4", ".%(ext)s", StringComparison.OrdinalIgnoreCase);
+        }
+
+        var extra = duplicate == DuplicateChoice.KeepBoth
+            ? $"_{DateTime.Now:yyyyMMdd-HHmmss}"
+            : "";
+        return Path.Combine(dest, $"{stem}{extra}_%(autonumber)03d.%(ext)s");
     }
 
     private static bool LooksLikeFailure(string text)

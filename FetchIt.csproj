@@ -11,7 +11,7 @@
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <AssemblyName>FetchIt</AssemblyName>
-    <Version>1.1.7</Version>
+    <Version>1.1.8</Version>
     <Product>fetch it</Product>
     <AssemblyTitle>fetch it</AssemblyTitle>
     <Description>Paste a URL. Fetch a preview, then save the video or photos.</Description>
