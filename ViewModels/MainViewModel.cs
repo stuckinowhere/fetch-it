@@ -465,8 +465,14 @@ public partial class MainViewModel : ViewModelBase
         await Ui.ShowAlertAsync(isError ? "Error" : "Saved", message, isError);
     }
 
-    private static string Short(string message)
+    internal static string Short(string message)
     {
+        if (message.Contains("invalid start of a value", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("BytePositionInLine", StringComparison.OrdinalIgnoreCase))
+            return "Could not read that link.";
+        if (message.Contains("SSL connection", StringComparison.OrdinalIgnoreCase))
+            return "GoFile dropped the connection. Try again.";
+
         var line = message.Replace('\n', ' ').Trim();
         return line.Length > 72 ? line[..72].Trim() : line;
     }

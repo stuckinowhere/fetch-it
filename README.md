@@ -72,11 +72,11 @@ After this branch is on `main`:
 ```powershell
 git checkout main
 git pull
-git tag v1.1.9
-git push origin v1.1.9
+git tag v1.1.10
+git push origin v1.1.10
 ```
 
-That runs `.github/workflows/release.yml`, which tests, publishes a self-contained win-x64 build, fetches tools, and creates a GitHub Release with `fetch-it-v1.1.9-win-x64-setup.exe` and `fetch-it-v1.1.9-win-x64.zip`.
+That runs `.github/workflows/release.yml`, which tests, publishes a self-contained win-x64 build, fetches tools, and creates a GitHub Release with `fetch-it-v1.1.10-win-x64-setup.exe` and `fetch-it-v1.1.10-win-x64.zip`.
 
 To build the installer locally (needs [Inno Setup 6](https://jrsoftware.org/isinfo.php)):
 

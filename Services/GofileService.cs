@@ -1,5 +1,8 @@
 using System.Net;
+using System.Net.Security;
+using System.Security.Authentication;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using FetchIt.Models;
@@ -14,6 +17,7 @@ public sealed class GofileService
     private const string Lang = "en-US";
     private const string TokenSalt = "5d4f7g8sd45fsd";
     private const long TokenWindow = 14400;
+    internal const string SslMessage = "GoFile dropped the connection. Try Download again.";
 
     public async Task<MediaProbe> ProbeAsync(
         string url,
@@ -24,11 +28,18 @@ public sealed class GofileService
             throw new InvalidOperationException("Not a GoFile link.");
 
         progress?.Report(new FetchProgress { Status = "Reading folder…" });
-        var folder = await ListFolderAsync(id, password, cancellationToken).ConfigureAwait(false);
-        if (folder.Items.Count == 0)
-            throw new InvalidOperationException(
-                folder.NeedsPassword ? "That folder needs a password." : "Could not read that link.");
-        return folder.Probe;
+        try
+        {
+            var folder = await ListFolderAsync(id, password, cancellationToken).ConfigureAwait(false);
+            if (folder.Items.Count == 0)
+                throw new InvalidOperationException(
+                    folder.NeedsPassword ? "That folder needs a password." : "Could not read that link.");
+            return folder.Probe;
+        }
+        catch (Exception ex) when (LooksLikeSsl(ex))
+        {
+            throw new InvalidOperationException(SslMessage);
+        }
     }
 
     public async Task DownloadAsync(
@@ -45,30 +56,50 @@ public sealed class GofileService
         if (!TryParseFolder(url, out var id, out var password))
             throw new InvalidOperationException("Not a GoFile link.");
 
-        progress.Report(new FetchProgress { Status = "Reading folder…" });
-        var listed = await ListFolderAsync(id, password, cancellationToken).ConfigureAwait(false);
-        var fresh = listed.Items.Count > 0 ? listed.Probe : probe;
+        var ready = probe.Items.Count > 0
+                    && probe.Items.All(item => MediaRouter.TryParseHttpUrl(item.DownloadUrl, out _));
+        MediaProbe fresh;
+        string token;
+        try
+        {
+            if (ready)
+            {
+                token = await EnsureTokenAsync(cancellationToken).ConfigureAwait(false);
+                fresh = probe;
+            }
+            else
+            {
+                progress.Report(new FetchProgress { Status = "Reading folder…" });
+                var listed = await ListFolderAsync(id, password, cancellationToken).ConfigureAwait(false);
+                token = listed.Token;
+                fresh = listed.Items.Count > 0 ? listed.Probe : probe;
+            }
+        }
+        catch (Exception ex) when (LooksLikeSsl(ex))
+        {
+            throw new InvalidOperationException(SslMessage);
+        }
+
         var jobs = GalleryDlService.PlanDirectFiles(dest, fresh, duplicate);
         if (jobs.Count == 0)
             throw new InvalidOperationException("Could not save those files.");
 
-        using var handler = new SocketsHttpHandler
+        using var handler = CreateHandler(cookies: true);
+        if (!string.IsNullOrEmpty(token))
+            handler.CookieContainer!.Add(new Cookie("accountToken", token, "/", ".gofile.io"));
+
+        using var http = CreateClient(handler, TimeSpan.FromMinutes(2));
+        if (!string.IsNullOrEmpty(token))
+            http.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", "Bearer " + token);
+
+        try
         {
-            MaxConnectionsPerServer = GalleryDlService.DirectParallel,
-            CookieContainer = new CookieContainer(),
-            UseCookies = true
-        };
-        if (!string.IsNullOrEmpty(listed.Token))
-            handler.CookieContainer.Add(new Cookie("accountToken", listed.Token, "/", ".gofile.io"));
-
-        using var http = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(2) };
-        http.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", UserAgent);
-        http.DefaultRequestHeaders.TryAddWithoutValidation("Origin", "https://gofile.io");
-        http.DefaultRequestHeaders.Referrer = new Uri("https://gofile.io/");
-        if (!string.IsNullOrEmpty(listed.Token))
-            http.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", "Bearer " + listed.Token);
-
-        await GalleryDlService.DownloadDirectAsync(jobs, progress, cancellationToken, http).ConfigureAwait(false);
+            await GalleryDlService.DownloadDirectAsync(jobs, progress, cancellationToken, http).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (LooksLikeSsl(ex))
+        {
+            throw new InvalidOperationException(SslMessage);
+        }
     }
 
     internal static bool TryParseFolder(string url, out string id, out string? password)
@@ -244,14 +275,61 @@ public sealed class GofileService
             "WasdFetchIt",
             "gofile-guest.txt");
 
-    private static HttpClient NewClient()
+    internal static bool LooksLikeSsl(Exception ex)
     {
-        var http = new HttpClient { Timeout = TimeSpan.FromMinutes(1) };
+        for (var current = ex; current is not null; current = current.InnerException)
+        {
+            if (current is AuthenticationException)
+                return true;
+            var text = current.Message;
+            if (text.Contains("SSL", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("TLS", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("certificate", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
+    }
+
+    internal static SocketsHttpHandler CreateHandler(bool cookies)
+    {
+        var handler = new SocketsHttpHandler
+        {
+            AutomaticDecompression = DecompressionMethods.All,
+            ConnectTimeout = TimeSpan.FromSeconds(20),
+            MaxConnectionsPerServer = GalleryDlService.DirectParallel,
+            PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+            EnableMultipleHttp2Connections = false,
+            SslOptions =
+            {
+                EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
+                CertificateRevocationCheckMode = X509RevocationMode.NoCheck
+            }
+        };
+        if (cookies)
+        {
+            handler.UseCookies = true;
+            handler.CookieContainer = new CookieContainer();
+        }
+
+        return handler;
+    }
+
+    private static HttpClient CreateClient(SocketsHttpHandler handler, TimeSpan timeout)
+    {
+        var http = new HttpClient(handler)
+        {
+            Timeout = timeout,
+            DefaultRequestVersion = HttpVersion.Version11,
+            DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower
+        };
         http.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", UserAgent);
         http.DefaultRequestHeaders.TryAddWithoutValidation("Origin", "https://gofile.io");
         http.DefaultRequestHeaders.Referrer = new Uri("https://gofile.io/");
         return http;
     }
+
+    private static HttpClient NewClient() => CreateClient(CreateHandler(cookies: false), TimeSpan.FromMinutes(1));
 
     private static async Task<JsonElement> RequestDataAsync(
         HttpClient http,
@@ -265,41 +343,104 @@ public sealed class GofileService
         if (!string.IsNullOrEmpty(query))
             url += "?" + query;
 
-        using var request = new HttpRequestMessage(method, url);
-        request.Headers.TryAddWithoutValidation("X-BL", Lang);
-        if (!string.IsNullOrEmpty(token))
+        HttpResponseMessage? response = null;
+        for (var attempt = 0; attempt < 3; attempt++)
         {
-            request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
-            request.Headers.TryAddWithoutValidation(
-                "X-Website-Token",
-                WebsiteToken(UserAgent, token, DateTimeOffset.UtcNow.ToUnixTimeSeconds()));
+            if (attempt > 0)
+                await Task.Delay(500 * attempt, cancellationToken).ConfigureAwait(false);
+            using var request = new HttpRequestMessage(method, url)
+            {
+                Version = HttpVersion.Version11,
+                VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
+            };
+            request.Headers.TryAddWithoutValidation("X-BL", Lang);
+            if (!string.IsNullOrEmpty(token))
+            {
+                request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
+                request.Headers.TryAddWithoutValidation(
+                    "X-Website-Token",
+                    WebsiteToken(UserAgent, token, DateTimeOffset.UtcNow.ToUnixTimeSeconds()));
+            }
+
+            try
+            {
+                response = await http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                break;
+            }
+            catch (Exception ex) when (attempt < 2 && LooksLikeSsl(ex))
+            {
+            }
         }
 
-        using var response = await http.SendAsync(request, cancellationToken).ConfigureAwait(false);
-        var text = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-        if ((int)response.StatusCode == 429)
-            throw new InvalidOperationException("GoFile is busy. Try again in a minute.");
+        if (response is null)
+            throw new InvalidOperationException(SslMessage);
 
-        if (!string.IsNullOrWhiteSpace(text) && text.TrimStart().StartsWith('{'))
+        using (response)
         {
-            using var doc = JsonDocument.Parse(text);
+            var text = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            if ((int)response.StatusCode == 429)
+                throw new InvalidOperationException("GoFile is busy. Try again in a minute.");
+
+            if (TryReadData(text, out var data, out var error))
+                return data;
+            if (error is not null)
+                throw new InvalidOperationException(error);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+                throw new HttpRequestException("Unauthorized", null, HttpStatusCode.Unauthorized);
+            throw new InvalidOperationException("Could not read that link.");
+        }
+    }
+
+    internal static bool TryReadData(string text, out JsonElement data, out string? error)
+    {
+        data = default;
+        error = null;
+        var trimmed = text.Trim();
+        if (trimmed.Length == 0 || trimmed[0] != '{')
+            return false;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(trimmed);
             var root = doc.RootElement;
             var status = ReadString(root, "status");
             if (string.Equals(status, "ok", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(status, "ok-no-cache", StringComparison.OrdinalIgnoreCase))
             {
-                if (!root.TryGetProperty("data", out var data))
-                    throw new InvalidOperationException("Could not read that link.");
-                return data.Clone();
+                if (!root.TryGetProperty("data", out var payload))
+                {
+                    error = "Could not read that link.";
+                    return false;
+                }
+
+                data = payload.Clone();
+                return true;
             }
 
             if (status is not null)
-                throw new InvalidOperationException(MessageForStatus(status));
+                error = MessageForStatus(status);
+            return false;
         }
+        catch (JsonException)
+        {
+            error = "GoFile is busy. Try again in a minute.";
+            return false;
+        }
+    }
 
-        if (response.StatusCode == HttpStatusCode.Unauthorized)
-            throw new HttpRequestException("Unauthorized", null, HttpStatusCode.Unauthorized);
-        throw new InvalidOperationException("Could not read that link.");
+    internal static string? HttpsLink(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return null;
+        var text = url.Trim();
+        if (text.StartsWith("//", StringComparison.Ordinal))
+            text = "https:" + text;
+        if (text.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            && Uri.TryCreate(text, UriKind.Absolute, out var http)
+            && (http.Host.EndsWith("gofile.io", StringComparison.OrdinalIgnoreCase)))
+            text = "https://" + http.Host + http.PathAndQuery;
+        return MediaRouter.TryParseHttpUrl(text, out _) ? text : null;
     }
 
     internal static string MessageForStatus(string status)
@@ -319,8 +460,8 @@ public sealed class GofileService
         var type = ReadString(content, "type");
         if (!string.Equals(type, "file", StringComparison.OrdinalIgnoreCase))
             return;
-        var link = ReadString(content, "link");
-        if (!MediaRouter.TryParseHttpUrl(link, out _))
+        var link = HttpsLink(ReadString(content, "link") ?? ReadString(content, "directLink"));
+        if (link is null)
             return;
 
         var name = ReadString(content, "name") ?? "file";

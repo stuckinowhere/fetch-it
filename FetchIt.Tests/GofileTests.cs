@@ -1,3 +1,5 @@
+using System.Net.Http;
+using System.Security.Authentication;
 using System.Text.Json;
 using FetchIt.Models;
 using FetchIt.Services;
@@ -75,4 +77,36 @@ public class GofileTests
     [InlineData("error-notPremium", "GoFile blocked that folder.")]
     public void Maps_gofile_status_to_a_short_error(string status, string message)
         => Assert.Equal(message, GofileService.MessageForStatus(status));
+
+    [Fact]
+    public void Garbage_api_body_is_not_json()
+    {
+        Assert.False(GofileService.TryReadData("gzip", out _, out var error));
+        Assert.Null(error);
+        Assert.False(GofileService.TryReadData("{nope}", out _, out var bad));
+        Assert.Equal("GoFile is busy. Try again in a minute.", bad);
+    }
+
+    [Fact]
+    public void Rewrites_http_gofile_links()
+    {
+        Assert.Equal(
+            "https://store-eu-par-5.gofile.io/download/web/a/one.jpg",
+            GofileService.HttpsLink("//store-eu-par-5.gofile.io/download/web/a/one.jpg"));
+        Assert.Equal(
+            "https://store5.gofile.io/download/web/b/two.mp4",
+            GofileService.HttpsLink("http://store5.gofile.io/download/web/b/two.mp4"));
+    }
+
+    [Fact]
+    public void Ssl_errors_map_to_a_retry_line()
+    {
+        var nested = new HttpRequestException(
+            "The SSL connection could not be established, see inner exception.",
+            new AuthenticationException("The remote certificate is invalid."));
+        Assert.True(GofileService.LooksLikeSsl(nested));
+        Assert.Equal(
+            "GoFile dropped the connection. Try Download again.",
+            GofileService.SslMessage);
+    }
 }
