@@ -28,6 +28,14 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public void Short_hides_json_parser_noise()
+    {
+        Assert.Equal(
+            "Could not read that link.",
+            MainViewModel.Short("'g' is an invalid start of a value. LineNumber: 0 | BytePositionInLine: 0"));
+    }
+
+    [Fact]
     public async Task Fetch_without_link_shows_error_alert()
     {
         var ui = new FakeUi();

@@ -14,7 +14,10 @@ public static class YtDlpParser
 
     public static MediaProbe Parse(string json)
     {
-        using var doc = JsonDocument.Parse(FindFirstObject(json));
+        var obj = FindFirstObject(json);
+        if (!obj.TrimStart().StartsWith('{'))
+            throw new InvalidOperationException("Could not read that link.");
+        using var doc = JsonDocument.Parse(obj);
         var root = doc.RootElement;
         var type = root.TryGetProperty("_type", out var typeEl) ? typeEl.GetString() : "video";
 
