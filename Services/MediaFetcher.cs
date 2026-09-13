@@ -61,10 +61,45 @@ public sealed class MediaFetcher
     {
         var publicUrl = MediaRouter.CanonicalPublicUrl(url);
         if (MediaRouter.TryParseHttpUrl(publicUrl, out var uri) && MediaRouter.IsGofile(uri))
-            return _gofile.DownloadAsync(url, folder, probe, duplicate, progress, cancellationToken);
+            return DownloadGofileAsync(url, publicUrl, folder, probe, duplicate, progress, cancellationToken);
         return probe.Engine == EngineKind.GalleryDl
             ? _gallery.DownloadAsync(publicUrl, folder, probe, duplicate, progress, cancellationToken)
             : _yt.DownloadAsync(publicUrl, folder, probe.Title, probe.FileCount, duplicate, progress, cancellationToken);
+    }
+
+    private async Task DownloadGofileAsync(
+        string url,
+        string publicUrl,
+        string folder,
+        MediaProbe probe,
+        DuplicateChoice duplicate,
+        IProgress<FetchProgress> progress,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _gofile.DownloadAsync(url, folder, probe, duplicate, progress, cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (InvalidOperationException ex) when (
+            ex.Message.Contains("password", StringComparison.OrdinalIgnoreCase)
+            || ex.Message.Contains("blocked that folder", StringComparison.OrdinalIgnoreCase)
+            || ex.Message.Contains("Windows blocked", StringComparison.OrdinalIgnoreCase)
+            || ex.Message == "Not a GoFile link.")
+        {
+            throw;
+        }
+        catch
+        {
+            progress.Report(new FetchProgress { Status = "Trying another reader…" });
+            await _yt.DownloadAsync(publicUrl, folder, probe.Title, probe.FileCount, duplicate, progress, cancellationToken)
+                .ConfigureAwait(false);
+        }
     }
 
     private Task<MediaProbe> RunProbe(

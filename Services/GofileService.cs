@@ -56,50 +56,35 @@ public sealed class GofileService
         if (!TryParseFolder(url, out var id, out var password))
             throw new InvalidOperationException("Not a GoFile link.");
 
-        var ready = probe.Items.Count > 0
-                    && probe.Items.All(item => MediaRouter.TryParseHttpUrl(item.DownloadUrl, out _));
-        MediaProbe fresh;
-        string token;
+        progress.Report(new FetchProgress { Status = "Reading folder…" });
+        ListedFolder listed;
         try
         {
-            if (ready)
-            {
-                token = await EnsureTokenAsync(cancellationToken).ConfigureAwait(false);
-                fresh = probe;
-            }
-            else
-            {
-                progress.Report(new FetchProgress { Status = "Reading folder…" });
-                var listed = await ListFolderAsync(id, password, cancellationToken).ConfigureAwait(false);
-                token = listed.Token;
-                fresh = listed.Items.Count > 0 ? listed.Probe : probe;
-            }
+            listed = await ListFolderAsync(id, password, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (LooksLikeSsl(ex))
         {
             throw new InvalidOperationException(SslMessage);
         }
 
-        var jobs = GalleryDlService.PlanDirectFiles(dest, fresh, duplicate);
+        var fresh = listed.Items.Count > 0 ? listed.Probe : probe;
+        var jobs = GalleryDlService.PlanDirectFiles(dest, fresh, duplicate)
+            .Select(job => (Url: WithAccountToken(job.Url, listed.Token), job.Path))
+            .ToList();
         if (jobs.Count == 0)
             throw new InvalidOperationException("Could not save those files.");
 
         using var handler = CreateHandler(cookies: true);
-        if (!string.IsNullOrEmpty(token))
-            handler.CookieContainer!.Add(new Cookie("accountToken", token, "/", ".gofile.io"));
+        if (!string.IsNullOrEmpty(listed.Token))
+            handler.CookieContainer!.Add(new Cookie("accountToken", listed.Token, "/", ".gofile.io"));
 
-        using var http = CreateClient(handler, TimeSpan.FromMinutes(2));
-        if (!string.IsNullOrEmpty(token))
-            http.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", "Bearer " + token);
+        using var http = CreateClient(handler, TimeSpan.FromMinutes(15));
+        if (!string.IsNullOrEmpty(listed.Token))
+            http.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", "Bearer " + listed.Token);
 
-        try
-        {
-            await GalleryDlService.DownloadDirectAsync(jobs, progress, cancellationToken, http).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (LooksLikeSsl(ex))
-        {
-            throw new InvalidOperationException(SslMessage);
-        }
+        var parallel = fresh.HasVideo ? 1 : 2;
+        await GalleryDlService.DownloadDirectAsync(jobs, progress, cancellationToken, http, parallel)
+            .ConfigureAwait(false);
     }
 
     internal static bool TryParseFolder(string url, out string id, out string? password)
@@ -296,7 +281,7 @@ public sealed class GofileService
         var handler = new SocketsHttpHandler
         {
             AutomaticDecompression = DecompressionMethods.All,
-            ConnectTimeout = TimeSpan.FromSeconds(20),
+            ConnectTimeout = TimeSpan.FromSeconds(45),
             MaxConnectionsPerServer = GalleryDlService.DirectParallel,
             PooledConnectionLifetime = TimeSpan.FromMinutes(2),
             EnableMultipleHttp2Connections = false,
@@ -441,6 +426,14 @@ public sealed class GofileService
             && (http.Host.EndsWith("gofile.io", StringComparison.OrdinalIgnoreCase)))
             text = "https://" + http.Host + http.PathAndQuery;
         return MediaRouter.TryParseHttpUrl(text, out _) ? text : null;
+    }
+
+    internal static string WithAccountToken(string url, string token)
+    {
+        if (string.IsNullOrEmpty(token) || url.Contains("token=", StringComparison.OrdinalIgnoreCase))
+            return url;
+        var sep = url.Contains('?', StringComparison.Ordinal) ? '&' : '?';
+        return url + sep + "token=" + Uri.EscapeDataString(token);
     }
 
     internal static string MessageForStatus(string status)
