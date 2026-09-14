@@ -44,6 +44,7 @@ public sealed class MediaProbe
     public int ImageCount { get; init; }
     public EngineKind Engine { get; init; }
     public IReadOnlyList<MediaItem> Items { get; init; } = [];
+    public IReadOnlyList<MediaQuality> Qualities { get; init; } = [];
     public bool HasVideo => VideoCount > 0;
     public bool HasImages => ImageCount > 0;
     public int FileCount => VideoCount + ImageCount;

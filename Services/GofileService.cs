@@ -95,14 +95,21 @@ public sealed class GofileService
             {
                 try
                 {
-                    await GofileCdn.SaveAsync(job.Url, job.Path, listed.Token, token).ConfigureAwait(false);
+                    var fileProgress = total == 1
+                        ? progress
+                        : null;
+                    await GofileCdn.SaveAsync(job.Url, job.Path, listed.Token, token, fileProgress)
+                        .ConfigureAwait(false);
                     var n = Interlocked.Increment(ref done);
-                    progress.Report(new FetchProgress
+                    if (total > 1)
                     {
-                        Percent = 100.0 * n / total,
-                        HasPercent = true,
-                        Status = $"{n} / {total}"
-                    });
+                        progress.Report(new FetchProgress
+                        {
+                            Percent = 100.0 * n / total,
+                            HasPercent = true,
+                            Status = $"{n} / {total}"
+                        });
+                    }
                 }
                 catch (OperationCanceledException)
                 {

@@ -1,0 +1,43 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FetchIt.Views.ConfirmWindow"
+        Icon="/Assets/fetchit.png"
+        Title=""
+        Width="440"
+        SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{DynamicResource PaperBrush}"
+        Foreground="{DynamicResource InkBrush}">
+    <StackPanel Margin="24" Spacing="16">
+        <TextBlock x:Name="Eyebrow"
+                   FontSize="12"
+                   FontWeight="Bold"
+                   Foreground="{DynamicResource SuccessBrush}" />
+        <TextBlock x:Name="Body"
+                   FontSize="16"
+                   FontWeight="Medium"
+                   TextWrapping="Wrap" />
+        <Grid ColumnDefinitions="*,Auto,Auto">
+            <Button Grid.Column="1"
+                    Classes="Flat"
+                    Margin="0,0,8,0"
+                    Content="Not now"
+                    Click="OnNoClick" />
+            <Button Grid.Column="2"
+                    Classes="fetch"
+                    Height="48"
+                    MinWidth="120"
+                    Click="OnYesClick">
+                <TextBlock x:Name="YesLabel"
+                           FontFamily="{StaticResource Plex}"
+                           FontSize="16"
+                           FontWeight="Bold"
+                           Foreground="{DynamicResource FetchTextBrush}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+            </Button>
+        </Grid>
+    </StackPanel>
+</Window>

@@ -27,7 +27,7 @@
         <vm:MainViewModel />
     </Design.DataContext>
 
-    <Grid RowDefinitions="Auto,*,Auto">
+    <Grid RowDefinitions="Auto,*,Auto,Auto">
         <Border Grid.Row="0" Height="56" Padding="8,0">
             <StackPanel HorizontalAlignment="Right"
                         Orientation="Horizontal"
@@ -258,7 +258,7 @@
         </Grid>
 
         <StackPanel Grid.Row="2"
-                    Margin="24,0,24,16"
+                    Margin="24,0,24,8"
                     Spacing="8"
                     IsVisible="{Binding ShowProgress}">
             <ProgressBar Height="6"
@@ -273,5 +273,14 @@
                        FontWeight="Medium"
                        Foreground="{DynamicResource InkBrush}" />
         </StackPanel>
+
+        <TextBlock Grid.Row="3"
+                   Margin="24,0,24,12"
+                   Text="© 2026 stuckinowhere · MIT"
+                   FontFamily="{StaticResource Plex}"
+                   FontSize="12"
+                   FontWeight="Medium"
+                   Foreground="{DynamicResource MutedBrush}"
+                   HorizontalAlignment="Left" />
     </Grid>
 </Window>

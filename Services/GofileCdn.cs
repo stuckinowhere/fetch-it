@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Sockets;
+using FetchIt.Models;
 
 namespace FetchIt.Services;
 
@@ -12,11 +13,13 @@ internal static class GofileCdn
         string url,
         string dest,
         string token,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IProgress<FetchProgress>? progress = null)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(dest))!);
-        if (await TryHttpAsync(url, dest, token, cancellationToken).ConfigureAwait(false))
+        if (await TryHttpAsync(url, dest, token, progress, cancellationToken).ConfigureAwait(false))
             return;
+        progress?.Report(new FetchProgress { Status = "Saving…", HasPercent = false });
         if (await TryCurlAsync(url, dest, token, cancellationToken).ConfigureAwait(false))
             return;
         throw new InvalidOperationException("Could not save those files.");
@@ -170,6 +173,7 @@ internal static class GofileCdn
         string url,
         string dest,
         string token,
+        IProgress<FetchProgress>? progress,
         CancellationToken cancellationToken)
     {
         var part = dest + ".part";
@@ -212,25 +216,46 @@ internal static class GofileCdn
                 if (!append)
                     have = 0;
 
+                var total = response.Content.Headers.ContentLength is { } length
+                    ? (append ? have + length : length)
+                    : (long?)null;
+
                 await using (var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
                 await using (var output = append
                     ? new FileStream(part, FileMode.Append, FileAccess.Write, FileShare.None)
                     : File.Create(part))
                 {
-                    await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
+                    var meter = new DownloadMeter();
+                    meter.Reset(have);
+                    var buffer = new byte[256 * 1024];
+                    long written = have;
+                    var lastReport = 0L;
+                    int read;
+                    while ((read = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+                    {
+                        await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken)
+                            .ConfigureAwait(false);
+                        written += read;
+                        if (progress is null || written - lastReport < 256 * 1024)
+                            continue;
+                        lastReport = written;
+                        progress.Report(meter.Snapshot(written, total));
+                    }
                 }
 
-                var written = new FileInfo(part).Length;
-                if (written == 0)
+                var fileWritten = new FileInfo(part).Length;
+                if (fileWritten == 0)
                     continue;
-                if (response.Content.Headers.ContentLength is { } length)
-                {
-                    var expected = append ? have + length : length;
-                    if (written < expected)
-                        continue;
-                }
+                if (total is { } expected && fileWritten < expected)
+                    continue;
 
                 File.Move(part, dest, overwrite: true);
+                progress?.Report(new FetchProgress
+                {
+                    Percent = 100,
+                    HasPercent = true,
+                    Status = "Saved"
+                });
                 return true;
             }
             catch (OperationCanceledException)

@@ -113,7 +113,7 @@ public sealed class GalleryDlService
                 MaxConnectionsPerServer = DirectParallel,
                 PooledConnectionLifetime = TimeSpan.FromMinutes(2)
             };
-            http = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(2) };
+            http = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
             http.DefaultRequestHeaders.TryAddWithoutValidation(
                 "User-Agent",
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
@@ -138,14 +138,24 @@ public sealed class GalleryDlService
                 {
                     try
                     {
-                        await SaveOneAsync(client, job.Url, job.Path, token).ConfigureAwait(false);
-                        var n = Interlocked.Increment(ref done);
-                        progress.Report(new FetchProgress
+                        if (total == 1)
                         {
-                            Percent = 100.0 * n / total,
-                            HasPercent = true,
-                            Status = $"{n} / {total}"
-                        });
+                            await SaveOneAsync(client, job.Url, job.Path, progress, token)
+                                .ConfigureAwait(false);
+                            Interlocked.Increment(ref done);
+                        }
+                        else
+                        {
+                            await SaveOneAsync(client, job.Url, job.Path, onProgress: null, token)
+                                .ConfigureAwait(false);
+                            var n = Interlocked.Increment(ref done);
+                            progress.Report(new FetchProgress
+                            {
+                                Percent = 100.0 * n / total,
+                                HasPercent = true,
+                                Status = $"{n} / {total}"
+                            });
+                        }
                     }
                     catch (OperationCanceledException)
                     {
@@ -185,6 +195,7 @@ public sealed class GalleryDlService
         HttpClient http,
         string mediaUrl,
         string name,
+        IProgress<FetchProgress>? onProgress,
         CancellationToken cancellationToken)
     {
         Exception? last = null;
@@ -194,7 +205,8 @@ public sealed class GalleryDlService
                 await Task.Delay(400 * attempt, cancellationToken).ConfigureAwait(false);
             try
             {
-                await SaveOneOnceAsync(http, mediaUrl, name, cancellationToken).ConfigureAwait(false);
+                await SaveOneOnceAsync(http, mediaUrl, name, onProgress, cancellationToken)
+                    .ConfigureAwait(false);
                 return;
             }
             catch (OperationCanceledException)
@@ -214,6 +226,7 @@ public sealed class GalleryDlService
         HttpClient http,
         string mediaUrl,
         string name,
+        IProgress<FetchProgress>? onProgress,
         CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, mediaUrl);
@@ -226,10 +239,42 @@ public sealed class GalleryDlService
         var tmp = name + ".part";
         try
         {
+            var total = response.Content.Headers.ContentLength;
             await using (var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
             await using (var output = File.Create(tmp))
-                await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
+            {
+                if (onProgress is null)
+                {
+                    await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    var meter = new DownloadMeter();
+                    meter.Reset();
+                    var buffer = new byte[256 * 1024];
+                    long written = 0;
+                    var lastReport = 0L;
+                    int read;
+                    while ((read = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+                    {
+                        await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken)
+                            .ConfigureAwait(false);
+                        written += read;
+                        if (written - lastReport < 256 * 1024)
+                            continue;
+                        lastReport = written;
+                        onProgress.Report(meter.Snapshot(written, total));
+                    }
+                }
+            }
+
             File.Move(tmp, name, overwrite: true);
+            onProgress?.Report(new FetchProgress
+            {
+                Percent = 100,
+                HasPercent = true,
+                Status = "Saved"
+            });
         }
         catch
         {
