@@ -72,9 +72,12 @@ public class MainViewModelTests
     private sealed class FakeUi : IUiHost
     {
         public List<(string Heading, string Message, bool IsError)> Alerts { get; } = [];
+        public string? Clipboard { get; set; }
+        public bool PasteAnswer { get; set; } = true;
+        public int PasteAsks { get; private set; }
 
         public Task<string?> PickFolderAsync() => Task.FromResult<string?>(null);
-        public Task<string?> ReadClipboardAsync() => Task.FromResult<string?>(null);
+        public Task<string?> ReadClipboardAsync() => Task.FromResult(Clipboard);
         public Task<bool> SignInInstagramAsync(CancellationToken cancellationToken) => Task.FromResult(false);
         public Task ShowUpdateAsync(UpdateCheckResult result) => Task.CompletedTask;
         public Task ShowAlertAsync(string heading, string message, bool isError)
@@ -85,5 +88,54 @@ public class MainViewModelTests
 
         public Task<DuplicateChoice> AskIfAlreadySavedAsync(string folderLabel, IReadOnlyList<string> names)
             => Task.FromResult(DuplicateChoice.Skip);
+
+        public Task<string?> AskQualityAsync(string title, IReadOnlyList<MediaQuality> qualities)
+            => Task.FromResult<string?>(qualities.Count > 0 ? qualities[0].Url : null);
+
+        public Task<bool> AskPasteLinkAsync(string link)
+        {
+            PasteAsks++;
+            return Task.FromResult(PasteAnswer);
+        }
+    }
+
+    [Fact]
+    public async Task PasteIfEmpty_asks_before_filling_url()
+    {
+        var ui = new FakeUi
+        {
+            Clipboard = "https://ok.ru/video/1",
+            PasteAnswer = true
+        };
+        var vm = new MainViewModel { Ui = ui };
+        await vm.PasteIfEmptyAsync();
+        Assert.Equal(1, ui.PasteAsks);
+        Assert.Equal("https://ok.ru/video/1", vm.Url);
+
+        await vm.PasteIfEmptyAsync();
+        Assert.Equal(1, ui.PasteAsks);
+    }
+
+    [Fact]
+    public async Task PasteIfEmpty_skips_when_user_declines()
+    {
+        var ui = new FakeUi
+        {
+            Clipboard = "https://ok.ru/video/2",
+            PasteAnswer = false
+        };
+        var vm = new MainViewModel { Ui = ui };
+        await vm.PasteIfEmptyAsync();
+        Assert.Equal(1, ui.PasteAsks);
+        Assert.Equal("", vm.Url);
+    }
+
+    [Fact]
+    public void ShortLink_truncates_long_urls()
+    {
+        var longUrl = "https://ok.ru/video/" + new string('a', 80);
+        var shortLink = MainViewModel.ShortLink(longUrl);
+        Assert.True(shortLink.Length <= 72);
+        Assert.EndsWith("…", shortLink);
     }
 }

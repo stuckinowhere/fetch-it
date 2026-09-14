@@ -133,6 +133,9 @@ public sealed class YtDlpService
             || text.Contains("Sign in", StringComparison.OrdinalIgnoreCase)
             || text.Contains("login required", StringComparison.OrdinalIgnoreCase))
             return "That site wants a signed-in session. Close Chrome, then paste the link again.";
+        if (text.Contains("must be str, bytes or bytearray", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("TypeError", StringComparison.OrdinalIgnoreCase))
+            return "That site changed. Try again after an update.";
         return "Could not read that link.";
     }
 }

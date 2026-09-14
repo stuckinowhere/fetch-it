@@ -79,6 +79,21 @@ public partial class MainWindow : Window, IUiHost
         return choice;
     }
 
+    public async Task<string?> AskQualityAsync(string title, IReadOnlyList<MediaQuality> qualities)
+    {
+        var window = new QualityWindow(title, qualities);
+        return await window.ShowDialog<string?>(this);
+    }
+
+    public async Task<bool> AskPasteLinkAsync(string link)
+    {
+        var window = new ConfirmWindow(
+            "Clipboard",
+            $"Paste this link?\n\n{MainViewModel.ShortLink(link)}",
+            "Paste");
+        return await window.ShowDialog<bool>(this);
+    }
+
     private async void OnActivated(object? sender, EventArgs e)
     {
         if (DataContext is MainViewModel vm)

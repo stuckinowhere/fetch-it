@@ -1,0 +1,28 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FetchIt.Views.QualityWindow"
+        Icon="/Assets/fetchit.png"
+        Title=""
+        Width="400"
+        SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{DynamicResource PaperBrush}"
+        Foreground="{DynamicResource InkBrush}">
+    <StackPanel Margin="24" Spacing="16">
+        <TextBlock Text="QUALITY"
+                   FontSize="12"
+                   FontWeight="Bold"
+                   Foreground="{DynamicResource SuccessBrush}" />
+        <TextBlock x:Name="Body"
+                   FontSize="16"
+                   FontWeight="Medium"
+                   TextWrapping="Wrap" />
+        <StackPanel x:Name="Choices" Spacing="8" />
+        <Button Classes="Flat"
+                HorizontalAlignment="Right"
+                Content="Cancel"
+                Click="OnCancelClick" />
+    </StackPanel>
+</Window>

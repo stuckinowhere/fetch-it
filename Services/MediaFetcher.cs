@@ -7,6 +7,7 @@ public sealed class MediaFetcher
     private readonly YtDlpService _yt = new();
     private readonly GalleryDlService _gallery = new();
     private readonly GofileService _gofile = new();
+    private readonly OkRuService _okru = new();
 
     public async Task<MediaProbe> ProbeAsync(
         string url,
@@ -25,6 +26,9 @@ public sealed class MediaFetcher
 
         if (MediaRouter.IsGofile(uri))
             return await _gofile.ProbeAsync(url, progress, cancellationToken).ConfigureAwait(false);
+
+        if (MediaRouter.IsOkRu(uri))
+            return await _okru.ProbeAsync(url, progress, cancellationToken).ConfigureAwait(false);
 
         if (MediaRouter.IsBunkr(uri) && !MediaRouter.IsBunkrFileOrAlbum(uri))
             throw new InvalidOperationException(MediaRouter.BunkrHomeMessage);
@@ -66,6 +70,9 @@ public sealed class MediaFetcher
         var publicUrl = MediaRouter.CanonicalPublicUrl(url);
         if (MediaRouter.TryParseHttpUrl(publicUrl, out var uri) && MediaRouter.IsGofile(uri))
             return DownloadGofileAsync(probe, url, folder, progress, duplicate, cancellationToken);
+        if (MediaRouter.TryParseHttpUrl(publicUrl, out uri) && MediaRouter.IsOkRu(uri)
+            && probe.Items.Any(i => !string.IsNullOrEmpty(i.DownloadUrl)))
+            return _okru.DownloadAsync(folder, probe, duplicate, progress, cancellationToken);
         return probe.Engine == EngineKind.GalleryDl
             ? _gallery.DownloadAsync(publicUrl, folder, probe, duplicate, progress, cancellationToken)
             : _yt.DownloadAsync(publicUrl, folder, probe.Title, probe.FileCount, duplicate, progress, cancellationToken);

@@ -15,6 +15,8 @@ public interface IUiHost
     Task ShowUpdateAsync(UpdateCheckResult result);
     Task ShowAlertAsync(string heading, string message, bool isError);
     Task<DuplicateChoice> AskIfAlreadySavedAsync(string folderLabel, IReadOnlyList<string> names);
+    Task<string?> AskQualityAsync(string title, IReadOnlyList<MediaQuality> qualities);
+    Task<bool> AskPasteLinkAsync(string link);
 }
 
 public partial class MainViewModel : ViewModelBase
@@ -26,6 +28,8 @@ public partial class MainViewModel : ViewModelBase
     private int _checkingUpdates;
     private double _viewportWidth;
     private double _viewportHeight;
+    private string? _pasteOffer;
+    private bool _askingPaste;
 
     public MainViewModel() : this(new MediaFetcher())
     {
@@ -166,7 +170,7 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = true)]
     private async Task FetchAsync()
     {
         if (IsBusy)
@@ -224,7 +228,7 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = true)]
     private async Task DownloadAsync()
     {
         if (IsBusy)
@@ -241,7 +245,31 @@ public partial class MainViewModel : ViewModelBase
 
         ClearStatus();
 
-        var existing = SaveClash.ExistingNames(FolderPath, Probe);
+        var probe = Probe!;
+        if (probe.Qualities.Count > 1)
+        {
+            if (Ui is null)
+                probe = OkRuService.WithSelectedQuality(probe, probe.Qualities[0].Url);
+            else
+            {
+                string? picked;
+                try
+                {
+                    picked = await Ui.AskQualityAsync(probe.Title, probe.Qualities);
+                }
+                catch (Exception ex)
+                {
+                    await FailAsync(Short(ex.Message));
+                    return;
+                }
+
+                if (picked is null)
+                    return;
+                probe = OkRuService.WithSelectedQuality(probe, picked);
+            }
+        }
+
+        var existing = SaveClash.ExistingNames(FolderPath, probe);
         var duplicate = DuplicateChoice.KeepBoth;
         if (existing.Count > 0)
         {
@@ -268,7 +296,7 @@ public partial class MainViewModel : ViewModelBase
 
         try
         {
-            await _fetcher.DownloadAsync(Probe, Url.Trim(), FolderPath, UiProgress(), duplicate, token);
+            await _fetcher.DownloadAsync(probe, Url.Trim(), FolderPath, UiProgress(), duplicate, token);
             HideWork();
             await OkAsync($"Saved to {FolderLabel}.");
         }
@@ -289,11 +317,35 @@ public partial class MainViewModel : ViewModelBase
 
     public async Task PasteIfEmptyAsync()
     {
-        if (!string.IsNullOrWhiteSpace(Url) || Ui is null)
+        if (!string.IsNullOrWhiteSpace(Url) || Ui is null || _askingPaste || IsBusy || IsProbing)
             return;
+
         var clip = await Ui.ReadClipboardAsync();
-        if (MediaRouter.TryParseHttpUrl(clip, out _))
-            Url = clip!.Trim();
+        if (!MediaRouter.TryParseHttpUrl(clip, out _))
+            return;
+
+        var link = clip!.Trim();
+        if (string.Equals(link, _pasteOffer, StringComparison.Ordinal))
+            return;
+
+        _askingPaste = true;
+        try
+        {
+            var paste = await Ui.AskPasteLinkAsync(link);
+            _pasteOffer = link;
+            if (paste && string.IsNullOrWhiteSpace(Url))
+                Url = link;
+        }
+        finally
+        {
+            _askingPaste = false;
+        }
+    }
+
+    internal static string ShortLink(string link)
+    {
+        var text = link.Trim();
+        return text.Length <= 72 ? text : text[..69].TrimEnd() + "…";
     }
 
     private async Task<MediaProbe> ProbeWithSessionAsync(string url, CancellationToken token)

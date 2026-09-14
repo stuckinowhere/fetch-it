@@ -119,13 +119,15 @@ public static class MediaRouter
         return host == "gofile.io" || host.EndsWith(".gofile.io", StringComparison.Ordinal);
     }
 
-    private static bool IsOkRuHost(Uri uri)
+    public static bool IsOkRu(Uri uri)
     {
         var host = NormalizedHost(uri);
         return host is "ok.ru" or "odnoklassniki.ru"
             or "m.ok.ru" or "mobile.ok.ru"
             or "m.odnoklassniki.ru";
     }
+
+    private static bool IsOkRuHost(Uri uri) => IsOkRu(uri);
 
     private static string CanonicalOkRu(Uri uri)
     {
