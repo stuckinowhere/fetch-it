@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using FetchIt.Models;
@@ -42,7 +43,7 @@ public partial class MainWindow : Window, IUiHost
     public async Task<string?> ReadClipboardAsync()
     {
         var clipboard = Clipboard;
-        return clipboard is null ? null : await clipboard.GetTextAsync();
+        return clipboard is null ? null : await clipboard.TryGetTextAsync();
     }
 
     public async Task<bool> SignInInstagramAsync(CancellationToken cancellationToken)

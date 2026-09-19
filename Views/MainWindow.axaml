@@ -85,7 +85,7 @@
                         Background="Transparent">
                     <TextBox BorderThickness="0"
                              Background="Transparent"
-                             Watermark="https://"
+                             PlaceholderText="https://"
                              Text="{Binding Url}"
                              VerticalAlignment="Center"
                              VerticalContentAlignment="Center">
