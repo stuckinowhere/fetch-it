@@ -28,6 +28,12 @@ public class ThumbnailUrlTests
             ThumbnailUrl.Pick("https://pic.twitter.com/abc", "https://pbs.twimg.com/media/abc.jpg"));
     }
 
+    [Theory]
+    [InlineData("https://pbs.twimg.com/media/abc?format=jpg&name=orig", true)]
+    [InlineData("https://i.ytimg.com/vi/dQw4w9wgXcQ/hqdefault.jpg", false)]
+    public void X_referer_only_for_twitter_cdn(string url, bool expected)
+        => Assert.Equal(expected, ThumbnailUrl.NeedsXReferer(url));
+
     [Fact]
     public void Mid_width_scores_higher_than_huge()
     {

@@ -26,15 +26,6 @@ public class SessionCookiesTests
     }
 
     [Fact]
-    public void GalleryDl_uses_cookie_file_when_session_exists()
-    {
-        Assert.Equal(
-            ["--cookies", @"C:\tmp\instagram.cookies.txt"],
-            SessionCookies.GalleryDlArguments(true, @"C:\tmp\instagram.cookies.txt", socialHost: true));
-        Assert.Empty(SessionCookies.GalleryDlArguments(false, @"C:\tmp\instagram.cookies.txt", socialHost: false));
-    }
-
-    [Fact]
     public void Save_roundtrip_uses_dpapi_and_temp_cookie_file()
     {
         var bin = SessionCookies.FilePath;

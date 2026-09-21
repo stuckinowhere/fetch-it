@@ -10,13 +10,6 @@ public sealed class ToolPaths
     public string? GalleryDl { get; init; }
     public IReadOnlyList<string> GalleryPrefix { get; init; } = [];
     public IReadOnlyDictionary<string, string>? GalleryEnvironment { get; init; }
-
-    public IReadOnlyList<string> GalleryArguments(IEnumerable<string> rest)
-    {
-        var args = new List<string>(GalleryPrefix);
-        args.AddRange(rest);
-        return args;
-    }
 }
 
 public static class ToolBootstrapper

@@ -46,7 +46,6 @@ public sealed class MediaProbe
     public IReadOnlyList<MediaItem> Items { get; init; } = [];
     public IReadOnlyList<MediaQuality> Qualities { get; init; } = [];
     public bool HasVideo => VideoCount > 0;
-    public bool HasImages => ImageCount > 0;
     public int FileCount => VideoCount + ImageCount;
     public int ExtraCount => Math.Max(0, Items.Count - PreviewCap);
     public IEnumerable<MediaItem> PreviewItems => Items.Take(PreviewCap);

@@ -50,12 +50,6 @@ public static class YtDlpParser
         return Math.Clamp(value, 0, 100);
     }
 
-    public static string? TryParseSizeStatus(string line)
-    {
-        var match = RatioRegex.Match(line);
-        return match.Success ? $"{match.Groups[1].Value.Trim()} {match.Groups[2].Value.Trim()} / {match.Groups[3].Value.Trim()} {match.Groups[4].Value.Trim()}" : null;
-    }
-
     public static DownloadProgressLine? TryParseDownloadProgress(string line)
     {
         if (string.IsNullOrWhiteSpace(line))
@@ -243,8 +237,7 @@ public static class YtDlpParser
         var vcodec = ReadString(root, "vcodec");
         var acodec = ReadString(root, "acodec");
         return string.Equals(vcodec, "none", StringComparison.OrdinalIgnoreCase)
-               && string.Equals(acodec, "none", StringComparison.OrdinalIgnoreCase)
-               && ext is not null && ImageExt.Contains(ext.Trim('.'));
+               && string.Equals(acodec, "none", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ExtractorName(JsonElement root)

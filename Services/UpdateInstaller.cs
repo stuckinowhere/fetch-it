@@ -174,7 +174,6 @@ public sealed class UpdateInstaller : IDisposable
         }
         catch
         {
-            // Best effort.
         }
     }
 }

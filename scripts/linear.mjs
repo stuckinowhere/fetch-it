@@ -212,7 +212,6 @@ switch (cmd) {
     break;
   }
   case 'find': {
-    // find --project <name|id> --title <prefix> → prints issue id or empty
     if (!flags['project'] || !flags['title']) {
       console.error('Usage: find --project <name|id> --title <prefix>');
       process.exit(1);
@@ -229,7 +228,6 @@ switch (cmd) {
     break;
   }
   case 'find-key': {
-    // find-key STU-123 → prints issue id or empty
     if (!pos[0]) {
       console.error('Usage: find-key <ISSUE-KEY>');
       process.exit(1);

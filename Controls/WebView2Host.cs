@@ -53,7 +53,6 @@ public sealed class WebView2Host : NativeControlHost
         }
         catch
         {
-            // ignore
         }
 
         _controller = null;

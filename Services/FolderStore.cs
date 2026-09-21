@@ -27,7 +27,6 @@ public static class FolderStore
         }
         catch
         {
-            // fall through to Windows Downloads
         }
 
         return WindowsDownloads();

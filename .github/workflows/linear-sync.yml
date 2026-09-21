@@ -42,7 +42,6 @@ jobs:
           set -euo pipefail
           [ -z "$LINEAR_API_KEY" ] && echo "no LINEAR_API_KEY, skipping" && exit 0
 
-          # Review submitted → comment on the linked issue.
           if [ "$EVT" = "pull_request_review" ]; then
             ID=$(node scripts/linear.mjs find --project "$REPO" --title "[PR #$PR_NUM]")
             if [ -n "$ID" ]; then
@@ -51,7 +50,6 @@ jobs:
             exit 0
           fi
 
-          # Prefer the issue keyed in the branch name (stu-123/desc), else the [PR #N] issue.
           KEY=$(echo "$PR_HEAD" | grep -oEi '[a-z]+-[0-9]+' | head -1 || true)
           ID=""
           if [ -n "$KEY" ]; then ID=$(node scripts/linear.mjs find-key "$KEY" || true); fi

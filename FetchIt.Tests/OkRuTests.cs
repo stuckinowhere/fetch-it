@@ -58,21 +58,23 @@ public class OkRuTests
     }
 
     [Fact]
-    public void ReportBytes_formats_known_total()
+    public void DownloadMeter_formats_known_total()
     {
-        FetchProgress? seen = null;
-        OkRuService.ReportBytes(new SyncProgress(p => seen = p), 5_242_880, 10_485_760);
-        Assert.StartsWith("5 MB / 10 MB", seen!.Status);
+        var meter = new DownloadMeter();
+        meter.Reset(0);
+        var seen = meter.Snapshot(5_242_880, 10_485_760);
+        Assert.StartsWith("5 MB / 10 MB", seen.Status);
         Assert.True(seen.HasPercent);
         Assert.InRange(seen.Percent, 49, 51);
     }
 
     [Fact]
-    public void ReportBytes_formats_unknown_total()
+    public void DownloadMeter_formats_unknown_total()
     {
-        FetchProgress? seen = null;
-        OkRuService.ReportBytes(new SyncProgress(p => seen = p), 1536, null);
-        Assert.StartsWith("Saving… 1.5 KB", seen!.Status);
+        var meter = new DownloadMeter();
+        meter.Reset(0);
+        var seen = meter.Snapshot(1536, null);
+        Assert.StartsWith("Saving… 1.5 KB", seen.Status);
         Assert.False(seen.HasPercent);
     }
 
@@ -83,11 +85,6 @@ public class OkRuTests
         Assert.Equal("0.2 MB/s", DownloadMeter.FormatSpeed(200 * 1024));
         Assert.Equal("50 KB/s", DownloadMeter.FormatSpeed(50 * 1024));
         Assert.Equal("…", DownloadMeter.FormatSpeed(0));
-    }
-
-    private sealed class SyncProgress(Action<FetchProgress> onReport) : IProgress<FetchProgress>
-    {
-        public void Report(FetchProgress value) => onReport(value);
     }
 
     [Fact]
@@ -108,7 +105,7 @@ public class OkRuTests
             """;
         using var doc = JsonDocument.Parse(flashvars);
         Assert.True(OkRuService.TryReadMetadata(doc.RootElement, out var meta));
-        Assert.Equal("https://cdn.example/hd.mp4", OkRuService.PickBestVideoUrl(meta));
+        Assert.Equal("https://cdn.example/hd.mp4", OkRuService.ListQualities(meta)[0].Url);
         Assert.True(OkRuService.QualityScore("hd") > OkRuService.QualityScore("sd"));
     }
 
@@ -122,7 +119,7 @@ public class OkRuTests
             """;
         using var doc = JsonDocument.Parse(flashvars);
         Assert.True(OkRuService.TryReadMetadata(doc.RootElement, out var meta));
-        Assert.Equal("https://cdn.example/old.mp4", OkRuService.PickBestVideoUrl(meta));
+        Assert.Equal("https://cdn.example/old.mp4", OkRuService.ListQualities(meta)[0].Url);
     }
 
     [Fact]
@@ -134,7 +131,7 @@ public class OkRuTests
         Assert.True(OkRuService.TryParsePlayer(html, out var player));
         Assert.True(player.TryGetProperty("flashvars", out var flashvars));
         Assert.True(OkRuService.TryReadMetadata(flashvars, out var meta));
-        Assert.Equal("https://cdn.example/v.mp4", OkRuService.PickBestVideoUrl(meta));
+        Assert.Equal("https://cdn.example/v.mp4", OkRuService.ListQualities(meta)[0].Url);
     }
 
     [Fact]
