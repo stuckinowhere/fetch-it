@@ -76,7 +76,6 @@ public sealed class ToolCookieSession : IDisposable
         }
         catch
         {
-            // ignore
         }
     }
 }
@@ -160,15 +159,6 @@ public static class SessionCookies
         return new ToolCookieSession([]);
     }
 
-    internal static IReadOnlyList<string> GalleryDlArguments(bool hasSession, string filePath, bool socialHost)
-    {
-        if (hasSession)
-            return ["--cookies", filePath];
-        return socialHost && ChromeCookieDb.IsReadable()
-            ? ["--cookies-from-browser", "chrome"]
-            : [];
-    }
-
     private static void MigrateLegacy()
     {
         if (File.Exists(FilePath) || !File.Exists(LegacyFilePath))
@@ -212,7 +202,6 @@ public static class SessionCookies
         }
         catch
         {
-            // ignore
         }
     }
 }

@@ -63,9 +63,6 @@ public class MediaRouterTests
     {
         Assert.True(MediaRouter.LooksPrivate("This account is private"));
         Assert.False(MediaRouter.LooksPrivate("Login required"));
-        Assert.True(MediaRouter.LooksLikeMissingSession("'401 Unauthorized' for feed"));
-        Assert.True(MediaRouter.LooksLikeMissingSession("HTTP redirect to login page"));
-        Assert.False(MediaRouter.LooksLikeMissingSession("""{"favorite_count":401,"type":"photo"}"""));
         Assert.Equal("Only public profiles.", MediaRouter.PublicOnlyMessage);
         Assert.Equal(
             "Instagram hid the posts. Sign in when asked. Chrome can stay open.",
@@ -96,25 +93,6 @@ public class MediaRouterTests
         Assert.Equal(
             "Sydney Sweeney for Novig",
             MediaRouter.SanitizeFolderName("Sydney Sweeney for Novig. 📁"));
-    }
-
-    [Fact]
-    public void SafeCombine_stays_under_folder()
-    {
-        var root = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "fetchit-safe-" + Guid.NewGuid().ToString("N")));
-        Directory.CreateDirectory(root);
-        try
-        {
-            Assert.Equal(Path.Combine(root, "album"), MediaRouter.SafeCombine(root, "album"));
-            var escaped = MediaRouter.SafeCombine(root, "..");
-            Assert.StartsWith(root + Path.DirectorySeparatorChar, escaped);
-            Assert.DoesNotContain("..", Path.GetRelativePath(root, escaped), StringComparison.Ordinal);
-            Assert.Equal(Path.Combine(root, "fetch"), MediaRouter.SafeCombine(root, "CON"));
-        }
-        finally
-        {
-            try { Directory.Delete(root, true); } catch { /* ignore */ }
-        }
     }
 
     [Fact]

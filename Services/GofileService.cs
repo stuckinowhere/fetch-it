@@ -471,52 +471,29 @@ public sealed class GofileService
             }
         }
 
-        var retries = 1;
-        HttpResponseMessage? response = null;
-        for (var attempt = 0; attempt < retries; attempt++)
+        using var request = new HttpRequestMessage(method, url)
         {
-            if (attempt > 0)
-            {
-                var wait = method == HttpMethod.Get && response?.StatusCode == (HttpStatusCode)429
-                    ? TimeSpan.FromSeconds(8 * attempt)
-                    : TimeSpan.FromMilliseconds(500 * attempt);
-                response?.Dispose();
-                response = null;
-                await Task.Delay(wait, cancellationToken).ConfigureAwait(false);
-            }
-
-            using var request = new HttpRequestMessage(method, url)
-            {
-                Version = HttpVersion.Version11,
-                VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
-            };
-            request.Headers.TryAddWithoutValidation("X-BL", Lang);
-            if (!string.IsNullOrEmpty(token))
-            {
-                request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
-                request.Headers.TryAddWithoutValidation(
-                    "X-Website-Token",
-                    WebsiteToken(UserAgent, token, DateTimeOffset.UtcNow.ToUnixTimeSeconds(), salt));
-            }
-
-            try
-            {
-                response = await http.SendAsync(request, cancellationToken).ConfigureAwait(false);
-                if ((int)response.StatusCode == 429 && attempt < retries - 1 && method == HttpMethod.Get)
-                    continue;
-                break;
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                throw new InvalidOperationException(UnreachableMessage);
-            }
-            catch (Exception ex) when (attempt < retries - 1 && LooksLikeSsl(ex))
-            {
-            }
+            Version = HttpVersion.Version11,
+            VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
+        };
+        request.Headers.TryAddWithoutValidation("X-BL", Lang);
+        if (!string.IsNullOrEmpty(token))
+        {
+            request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
+            request.Headers.TryAddWithoutValidation(
+                "X-Website-Token",
+                WebsiteToken(UserAgent, token, DateTimeOffset.UtcNow.ToUnixTimeSeconds(), salt));
         }
 
-        if (response is null)
-            throw new InvalidOperationException(SslMessage);
+        HttpResponseMessage response;
+        try
+        {
+            response = await http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new InvalidOperationException(UnreachableMessage);
+        }
 
         using (response)
         {

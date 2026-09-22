@@ -48,7 +48,7 @@ public static class MediaRouter
 
         if (!IsInstagramHost(uri))
         {
-            if (IsOkRuHost(uri))
+            if (IsOkRu(uri))
                 return CanonicalOkRu(uri);
             return uri.ToString();
         }
@@ -70,16 +70,6 @@ public static class MediaRouter
     public static bool LooksPrivate(string text)
         => text.Contains("This account is private", StringComparison.OrdinalIgnoreCase)
            || text.Contains("private account", StringComparison.OrdinalIgnoreCase);
-
-    public static bool LooksLikeMissingSession(string text)
-        => text.Contains("401 Unauthorized", StringComparison.OrdinalIgnoreCase)
-           || text.Contains("'401", StringComparison.Ordinal)
-           || text.Contains("\"401", StringComparison.Ordinal)
-           || text.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase)
-           || text.Contains("login page", StringComparison.OrdinalIgnoreCase)
-           || text.Contains("Permission denied", StringComparison.OrdinalIgnoreCase)
-           || text.Contains("unable to open database", StringComparison.OrdinalIgnoreCase)
-           || text.Contains("cookies", StringComparison.OrdinalIgnoreCase) && text.Contains("denied", StringComparison.OrdinalIgnoreCase);
 
     public static bool IsSocialPostHost(Uri uri)
     {
@@ -126,8 +116,6 @@ public static class MediaRouter
             or "m.ok.ru" or "mobile.ok.ru"
             or "m.odnoklassniki.ru";
     }
-
-    private static bool IsOkRuHost(Uri uri) => IsOkRu(uri);
 
     private static string CanonicalOkRu(Uri uri)
     {
@@ -186,17 +174,5 @@ public static class MediaRouter
         if (cleaned.Length > 80)
             cleaned = cleaned[..80].Trim().Trim(' ', '.');
         return string.IsNullOrWhiteSpace(cleaned) ? "fetch" : cleaned;
-    }
-
-    public static string SafeCombine(string folder, string title)
-    {
-        var root = Path.GetFullPath(folder);
-        var dest = Path.GetFullPath(Path.Combine(root, SanitizeFolderName(title)));
-        var prefix = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-                     + Path.DirectorySeparatorChar;
-        if (!dest.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(dest, root, StringComparison.OrdinalIgnoreCase))
-            return root;
-        return dest;
     }
 }

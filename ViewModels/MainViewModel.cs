@@ -19,7 +19,7 @@ public interface IUiHost
     Task<bool> AskPasteLinkAsync(string link);
 }
 
-public partial class MainViewModel : ViewModelBase
+public partial class MainViewModel : ObservableObject
 {
     private readonly MediaFetcher _fetcher;
     private CancellationTokenSource? _probeCts;
@@ -49,7 +49,6 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _url = "";
     [ObservableProperty] private string _title = "";
     [ObservableProperty] private string _summary = "";
-    [ObservableProperty] private bool _hasResult;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowEmptyHint))]
     [NotifyPropertyChangedFor(nameof(CanDownload))]
@@ -59,7 +58,6 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _moreLabel = "";
     [ObservableProperty] private string _folderPath = "";
     [ObservableProperty] private string _folderLabel = "Downloads";
-    [ObservableProperty] private string _folderTip = "Choose save folder";
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowEmptyHint))]
     [NotifyPropertyChangedFor(nameof(DownloadLabel))]
@@ -150,7 +148,6 @@ public partial class MainViewModel : ViewModelBase
     partial void OnFolderPathChanged(string value)
     {
         FolderLabel = FolderDisplay(value);
-        FolderTip = $"Save folder: {value}";
         FolderStore.Save(value);
     }
 
@@ -414,7 +411,6 @@ public partial class MainViewModel : ViewModelBase
         Probe = probe;
         Title = probe.Title;
         Summary = probe.Summary;
-        HasResult = true;
         ReplaceCards(probe.PreviewItems);
         HasPreview = PreviewCards.Count > 0;
         HasMore = probe.ExtraCount > 0;
@@ -428,7 +424,6 @@ public partial class MainViewModel : ViewModelBase
         Probe = null;
         Title = "";
         Summary = "";
-        HasResult = false;
         ReplaceCards([]);
         HasPreview = false;
         HasMore = false;

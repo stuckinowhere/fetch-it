@@ -197,8 +197,6 @@ public sealed class GitHubUpdateClient : IDisposable
         return true;
     }
 
-    public static void OpenUrl(string url) => TryOpenUrl(url);
-
     public void Dispose()
     {
         if (_ownsHttp)

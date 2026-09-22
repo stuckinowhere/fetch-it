@@ -265,15 +265,6 @@ public sealed class OkRuService
         throw last ?? new InvalidOperationException("Could not save those files.");
     }
 
-    internal static void ReportBytes(IProgress<FetchProgress> progress, long written, long? total)
-    {
-        var meter = new DownloadMeter();
-        meter.Reset(0);
-        progress.Report(meter.Snapshot(written, total));
-    }
-
-    internal static string FormatBytes(long bytes) => DownloadMeter.FormatBytes(bytes);
-
     internal static bool TryParsePlayer(string html, out JsonElement player)
     {
         player = default;
@@ -382,9 +373,6 @@ public sealed class OkRuService
             .Select(x => x.Quality)
             .ToList();
     }
-
-    internal static string? PickBestVideoUrl(JsonElement metadata)
-        => ListQualities(metadata).FirstOrDefault()?.Url;
 
     internal static string FormatQualityLabel(string name)
     {

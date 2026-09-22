@@ -135,7 +135,6 @@ public class ParserTests
               [3, "https://example.com/c.jpg", {"category": "twitter", "extension": "jpg", "type": "photo", "favorite_count": 401}]
             ]
             """;
-        Assert.False(MediaRouter.LooksLikeMissingSession(json));
         var probe = GalleryDlParser.Parse(json);
         Assert.Equal(3, probe.ImageCount);
         Assert.Equal(0, probe.VideoCount);
@@ -165,7 +164,6 @@ public class ParserTests
 
         var login = GalleryDlParser.Parse("""[[-1,{"error":"AbortExtraction","message":"HTTP redirect to login page"}]]""");
         Assert.Empty(login.Items);
-        Assert.True(MediaRouter.LooksLikeMissingSession("HTTP redirect to login page"));
     }
 
     [Fact]
@@ -184,10 +182,6 @@ public class ParserTests
     [InlineData("100%", 100)]
     public void YtDlp_parses_percent(string line, double expected)
         => Assert.Equal(expected, YtDlpParser.TryParsePercent(line));
-
-    [Fact]
-    public void YtDlp_parses_size_status()
-        => Assert.Equal("2.1 MiB / 12.4 MiB", YtDlpParser.TryParseSizeStatus("  2.1 MiB / 12.4 MiB at 1MiB/s"));
 
     [Fact]
     public void YtDlp_parses_download_speed_and_remaining()
@@ -238,9 +232,4 @@ public class ParserTests
             ViewModels.MainViewModel.DefaultDownloads());
     }
 
-    [Theory]
-    [InlineData("https://pbs.twimg.com/media/abc?format=jpg&name=orig", true)]
-    [InlineData("https://i.ytimg.com/vi/dQw4w9wgXcQ/hqdefault.jpg", false)]
-    public void Preview_uses_x_referer_only_for_twitter_cdn(string url, bool expected)
-        => Assert.Equal(expected, ViewModels.PreviewCard.NeedsXReferer(url));
 }

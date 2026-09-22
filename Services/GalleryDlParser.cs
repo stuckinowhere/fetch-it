@@ -5,11 +5,6 @@ namespace FetchIt.Services;
 
 public static class GalleryDlParser
 {
-    private static readonly HashSet<string> ImageExt = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "jpg", "jpeg", "png", "webp", "gif", "bmp", "avif", "heic"
-    };
-
     private static readonly HashSet<string> VideoExt = new(StringComparer.OrdinalIgnoreCase)
     {
         "mp4", "webm", "mkv", "mov", "m4v", "avi", "m3u8"
@@ -187,9 +182,7 @@ public static class GalleryDlParser
             return false;
 
         ext = ext.Trim().Trim('.');
-        if (VideoExt.Contains(ext))
-            return true;
-        return !ImageExt.Contains(ext) && VideoExt.Contains(ext);
+        return VideoExt.Contains(ext);
     }
 
     private static string? HttpsOrNull(string? url)

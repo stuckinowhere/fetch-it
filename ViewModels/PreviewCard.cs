@@ -22,18 +22,14 @@ public sealed partial class PreviewCard : ObservableObject, IDisposable
 
     public PreviewCard(MediaItem item)
     {
-        Item = item;
         Title = item.Title;
         Overlay = item.Overlay;
-        IsVideo = item.Kind == MediaKind.Video;
         if (!string.IsNullOrWhiteSpace(item.ThumbnailUrl))
             _ = LoadAsync(item.ThumbnailUrl, _cts.Token);
     }
 
-    public MediaItem Item { get; }
     public string Title { get; }
     public string Overlay { get; }
-    public bool IsVideo { get; }
 
     [ObservableProperty] private Bitmap? _image;
     [ObservableProperty] private double _tileWidth = 320;
@@ -90,8 +86,6 @@ public sealed partial class PreviewCard : ObservableObject, IDisposable
             }
         }
     }
-
-    internal static bool NeedsXReferer(string url) => ThumbnailUrl.NeedsXReferer(url);
 
     public void Dispose()
     {
