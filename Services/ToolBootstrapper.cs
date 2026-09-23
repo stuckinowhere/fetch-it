@@ -1,5 +1,7 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace FetchIt.Services;
 
@@ -14,20 +16,7 @@ public sealed class ToolPaths
 
 public static class ToolBootstrapper
 {
-    public const string YtDlpUrl =
-        "https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp.exe";
-    public const string YtDlpSha256 =
-        "66674953fe251b89f4d08c5f0e35e0728679bd67ab3d7d05c0562af101dd3e7a";
-
-    public const string FfmpegZipUrl =
-        "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-09-14-51/ffmpeg-N-126482-g903325e279-win64-gpl.zip";
-    public const string FfmpegZipSha256 =
-        "6c60a0c17a02eab0ead59c4597e58268fa024b45ff08cd27b6d6be8e50fd2588";
-
-    public const string GalleryDlWheelUrl =
-        "https://files.pythonhosted.org/packages/d6/6b/ac77fe9f7c050ca04de17174f5fc384ae104b009424b147089f0a8037272/gallery_dl-1.32.11-py3-none-any.whl";
-    public const string GalleryDlWheelSha256 =
-        "67fcb941083defebcf0d075e6c0c0aab84a5d8ef23e927f34bf9b9860754958b";
+    internal static readonly ToolPinTable Pins = ToolPinTable.Load();
 
     public static string LocalToolsDirectory => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -61,7 +50,7 @@ public static class ToolBootstrapper
         foreach (var root in CandidateRoots())
         {
             var yt = Path.Combine(root, "yt-dlp.exe");
-            if (!File.Exists(yt) || !Sha256Equals(yt, YtDlpSha256))
+            if (!File.Exists(yt) || !Sha256Equals(yt, Pins.YtDlp.Sha256))
                 continue;
 
             var ffmpeg = Path.Combine(root, "ffmpeg.exe");
@@ -106,11 +95,11 @@ public static class ToolBootstrapper
         progress?.Report("tools");
         if (existing is null)
         {
-            await DownloadVerifiedAsync(http, YtDlpUrl, Path.Combine(dest, "yt-dlp.exe"), YtDlpSha256, cancellationToken)
+            await DownloadVerifiedAsync(http, Pins.YtDlp.Url, Path.Combine(dest, "yt-dlp.exe"), Pins.YtDlp.Sha256, cancellationToken)
                 .ConfigureAwait(false);
 
             var zipPath = Path.Combine(dest, "ffmpeg.zip");
-            await DownloadVerifiedAsync(http, FfmpegZipUrl, zipPath, FfmpegZipSha256, cancellationToken)
+            await DownloadVerifiedAsync(http, Pins.FfmpegZip.Url, zipPath, Pins.FfmpegZip.Sha256, cancellationToken)
                 .ConfigureAwait(false);
             ExtractFfmpeg(zipPath, dest);
             TryDelete(zipPath);
@@ -119,7 +108,7 @@ public static class ToolBootstrapper
         var wheel = Path.Combine(dest, "gallery-dl.whl");
         try
         {
-            await DownloadVerifiedAsync(http, GalleryDlWheelUrl, wheel, GalleryDlWheelSha256, cancellationToken)
+            await DownloadVerifiedAsync(http, Pins.GalleryDlWheel.Url, wheel, Pins.GalleryDlWheel.Sha256, cancellationToken)
                 .ConfigureAwait(false);
             ExtractWheel(wheel, Path.Combine(dest, "gallery-dl-lib"));
         }
@@ -227,5 +216,45 @@ public static class ToolBootstrapper
         catch
         {
         }
+    }
+}
+
+internal sealed class ToolPin
+{
+    [JsonPropertyName("url")]
+    public required string Url { get; init; }
+
+    [JsonPropertyName("sha256")]
+    public required string Sha256 { get; init; }
+}
+
+internal sealed class ToolPinTable
+{
+    internal const string ResourceName = "FetchIt.tool-pins.json";
+
+    [JsonPropertyName("ytDlp")]
+    public required ToolPin YtDlp { get; init; }
+
+    [JsonPropertyName("ffmpegZip")]
+    public required ToolPin FfmpegZip { get; init; }
+
+    [JsonPropertyName("galleryDlWheel")]
+    public required ToolPin GalleryDlWheel { get; init; }
+
+    internal static ToolPinTable Load()
+    {
+        using var stream = typeof(ToolBootstrapper).Assembly.GetManifestResourceStream(ResourceName)
+            ?? throw new InvalidOperationException($"Missing embedded {ResourceName}.");
+        var table = JsonSerializer.Deserialize<ToolPinTable>(stream)
+            ?? throw new InvalidOperationException("Invalid scripts/tool-pins.json.");
+        if (table.YtDlp is null || table.FfmpegZip is null || table.GalleryDlWheel is null)
+            throw new InvalidOperationException("scripts/tool-pins.json is missing a pin.");
+        foreach (var pin in new[] { table.YtDlp, table.FfmpegZip, table.GalleryDlWheel })
+        {
+            if (string.IsNullOrWhiteSpace(pin.Url) || string.IsNullOrWhiteSpace(pin.Sha256))
+                throw new InvalidOperationException("scripts/tool-pins.json is missing a url or sha256.");
+        }
+
+        return table;
     }
 }

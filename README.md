@@ -37,7 +37,7 @@ That builds `publish\win-x64\FetchIt.exe`, downloads yt-dlp / gallery-dl / ffmpe
 .\run-windows.ps1
 ```
 
-The first fetch downloads the tools into `%LocalAppData%\WasdFetchIt\tools` if they are not already beside the exe.
+The first fetch downloads pinned yt-dlp and ffmpeg into `%LocalAppData%\WasdFetchIt\tools` if they are not already beside the exe. gallery-dl also needs `python.exe` on `PATH`. Without Python, Instagram, X, and Threads skip that engine.
 
 If PowerShell blocks scripts: `Set-ExecutionPolicy -Scope Process Bypass`.
 

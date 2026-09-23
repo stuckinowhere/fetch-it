@@ -8,6 +8,18 @@ namespace FetchIt.Tests;
 public class ToolBootstrapperTests
 {
     [Fact]
+    public void Pins_load_from_embedded_table()
+    {
+        var pins = ToolBootstrapper.Pins;
+        Assert.StartsWith("https://", pins.YtDlp.Url, StringComparison.Ordinal);
+        Assert.StartsWith("https://", pins.FfmpegZip.Url, StringComparison.Ordinal);
+        Assert.StartsWith("https://", pins.GalleryDlWheel.Url, StringComparison.Ordinal);
+        Assert.Equal(64, pins.YtDlp.Sha256.Length);
+        Assert.Equal(64, pins.FfmpegZip.Sha256.Length);
+        Assert.Equal(64, pins.GalleryDlWheel.Sha256.Length);
+    }
+
+    [Fact]
     public void Sha256Equals_matches_known_hash()
     {
         var path = Path.Combine(Path.GetTempPath(), "fetchit-hash-" + Guid.NewGuid().ToString("N") + ".bin");
