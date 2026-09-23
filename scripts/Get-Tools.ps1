@@ -1,4 +1,4 @@
-# Download pinned yt-dlp, ffmpeg, and gallery-dl (hashed). Not committed to git.
+# Download pinned yt-dlp, ffmpeg, and gallery-dl from scripts/tool-pins.json. Not committed to git.
 
 param(
     [Parameter(Mandatory = $true)]
@@ -8,12 +8,13 @@ param(
 $ErrorActionPreference = "Stop"
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
-$YtDlpUrl = "https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp.exe"
-$YtDlpSha = "66674953fe251b89f4d08c5f0e35e0728679bd67ab3d7d05c0562af101dd3e7a"
-$FfmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-09-14-51/ffmpeg-N-126482-g903325e279-win64-gpl.zip"
-$FfmpegSha = "6c60a0c17a02eab0ead59c4597e58268fa024b45ff08cd27b6d6be8e50fd2588"
-$WheelUrl = "https://files.pythonhosted.org/packages/d6/6b/ac77fe9f7c050ca04de17174f5fc384ae104b009424b147089f0a8037272/gallery_dl-1.32.11-py3-none-any.whl"
-$WheelSha = "67fcb941083defebcf0d075e6c0c0aab84a5d8ef23e927f34bf9b9860754958b"
+$pinsPath = Join-Path $PSScriptRoot "tool-pins.json"
+$pins = Get-Content -LiteralPath $pinsPath -Raw | ConvertFrom-Json
+foreach ($pin in @($pins.ytDlp, $pins.ffmpegZip, $pins.galleryDlWheel)) {
+    if (-not $pin -or -not $pin.url -or -not $pin.sha256) {
+        throw "scripts/tool-pins.json is missing a url or sha256."
+    }
+}
 
 function Test-Sha256([string] $Path, [string] $Expected) {
     if (-not (Test-Path $Path)) { return $false }
@@ -38,12 +39,12 @@ function Get-Verified([string] $Url, [string] $Dest, [string] $Sha) {
     Move-Item $tmp $Dest -Force
 }
 
-Get-Verified $YtDlpUrl (Join-Path $OutDir "yt-dlp.exe") $YtDlpSha
+Get-Verified $pins.ytDlp.url (Join-Path $OutDir "yt-dlp.exe") $pins.ytDlp.sha256
 
 $ffmpeg = Join-Path $OutDir "ffmpeg.exe"
 if (-not (Test-Path $ffmpeg)) {
     $zip = Join-Path $OutDir "ffmpeg.zip"
-    Get-Verified $FfmpegUrl $zip $FfmpegSha
+    Get-Verified $pins.ffmpegZip.url $zip $pins.ffmpegZip.sha256
     $tmp = Join-Path $OutDir "ffmpeg-unpack"
     if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
     Expand-Archive -Path $zip -DestinationPath $tmp -Force
@@ -56,7 +57,7 @@ if (-not (Test-Path $ffmpeg)) {
 $wheel = Join-Path $OutDir "gallery-dl.whl"
 $lib = Join-Path $OutDir "gallery-dl-lib"
 try {
-    Get-Verified $WheelUrl $wheel $WheelSha
+    Get-Verified $pins.galleryDlWheel.url $wheel $pins.galleryDlWheel.sha256
     New-Item -ItemType Directory -Force -Path $lib | Out-Null
     $wheelZip = Join-Path $OutDir "gallery-dl.whl.zip"
     Copy-Item $wheel $wheelZip -Force
