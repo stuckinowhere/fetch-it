@@ -54,8 +54,6 @@ public class MainViewModelTests
         var ui = new FakeUi();
         var vm = new MainViewModel { Ui = ui, Url = "not-a-link" };
         await vm.FetchCommand.ExecuteAsync(null);
-        Assert.Equal("Not a link.", vm.Error);
-        Assert.Empty(vm.Success);
         Assert.Equal(("Error", "Not a link.", true), Assert.Single(ui.Alerts));
     }
 
@@ -65,7 +63,6 @@ public class MainViewModelTests
         var ui = new FakeUi();
         var vm = new MainViewModel { Ui = ui };
         await vm.DownloadCommand.ExecuteAsync(null);
-        Assert.Equal("Fetch first.", vm.Error);
         Assert.Equal(("Error", "Fetch first.", true), Assert.Single(ui.Alerts));
     }
 

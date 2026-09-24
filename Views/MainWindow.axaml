@@ -74,7 +74,7 @@
         </Border>
 
         <Grid Grid.Row="1"
-              RowDefinitions="Auto,Auto,*,Auto"
+              RowDefinitions="Auto,*,Auto"
               Margin="24,12,24,8">
             <Grid ColumnDefinitions="*,Auto">
                 <Border BorderBrush="{DynamicResource InkBrush}"
@@ -111,34 +111,11 @@
                 </Button>
             </Grid>
 
-            <StackPanel Grid.Row="1" Margin="0,8,0,0">
-                <TextBlock Text="{Binding Error}"
-                           IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                           FontFamily="{StaticResource Plex}"
-                           FontSize="14"
-                           FontWeight="Medium"
-                           TextWrapping="Wrap"
-                           Foreground="{DynamicResource DangerBrush}" />
-                <TextBlock Text="{Binding Success}"
-                           IsVisible="{Binding Success, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                           FontFamily="{StaticResource Plex}"
-                           FontSize="14"
-                           FontWeight="Medium"
-                           TextWrapping="Wrap"
-                           Foreground="{DynamicResource SuccessBrush}" />
-            </StackPanel>
-
-            <Grid Grid.Row="2"
+            <Grid Grid.Row="1"
                   Margin="0,16,0,0"
                   SizeChanged="OnPreviewSizeChanged">
                 <TextBlock Text="Paste a link, then Fetch."
                            IsVisible="{Binding ShowEmptyHint}"
-                           FontFamily="{StaticResource Plex}"
-                           FontSize="16"
-                           FontWeight="Medium"
-                           Foreground="{DynamicResource InkBrush}" />
-                <TextBlock Text="{Binding ProgressText}"
-                           IsVisible="{Binding IsProbing}"
                            FontFamily="{StaticResource Plex}"
                            FontSize="16"
                            FontWeight="Medium"
@@ -220,7 +197,7 @@
                 </ScrollViewer>
             </Grid>
 
-            <Grid Grid.Row="3"
+            <Grid Grid.Row="2"
                   ColumnDefinitions="*,Auto"
                   Margin="0,12,0,0"
                   IsVisible="{Binding HasPreview}">

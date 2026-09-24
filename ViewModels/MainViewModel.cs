@@ -71,19 +71,12 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _progressIsIndeterminate;
     [ObservableProperty] private double _progress;
     [ObservableProperty] private string _progressText = "";
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowEmptyHint))]
-    private string _error = "";
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowEmptyHint))]
-    private string _success = "";
     [ObservableProperty] private bool _isDark;
     [ObservableProperty] private double _tileWidth = 320;
     [ObservableProperty] private double _tileImageHeight = 180;
 
     public MediaProbe? Probe { get; private set; }
-    public bool ShowEmptyHint =>
-        !HasPreview && string.IsNullOrEmpty(Error) && string.IsNullOrEmpty(Success) && !IsProbing && !IsBusy;
+    public bool ShowEmptyHint => !HasPreview && !IsProbing && !IsBusy;
     public bool IsSinglePreview => HasPreview && PreviewCards.Count == 1;
     public bool HasManyPreviews => PreviewCards.Count > 1;
     public PreviewCard? Hero => PreviewCards.Count == 1 ? PreviewCards[0] : null;
@@ -93,7 +86,6 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnUrlChanged(string value)
     {
-        ClearStatus();
         _probeCts?.Cancel();
         ClearResult();
         HideWork();
@@ -160,9 +152,7 @@ public partial class MainViewModel : ObservableObject
         if (!string.IsNullOrWhiteSpace(picked))
         {
             FolderPath = picked;
-            if (FolderStore.CanWrite(picked))
-                ClearStatus();
-            else
+            if (!FolderStore.CanWrite(picked))
                 await FailAsync("Windows blocked that folder. Pick another save folder.");
         }
     }
@@ -178,7 +168,6 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        ClearStatus();
         if (!MediaRouter.TryParseHttpUrl(Url, out _))
         {
             await FailAsync("Not a link.");
@@ -239,8 +228,6 @@ public partial class MainViewModel : ObservableObject
             await FailAsync("Fetch first.");
             return;
         }
-
-        ClearStatus();
 
         var probe = Probe!;
         if (probe.Qualities.Count > 1)
@@ -415,7 +402,6 @@ public partial class MainViewModel : ObservableObject
         HasPreview = PreviewCards.Count > 0;
         HasMore = probe.ExtraCount > 0;
         MoreLabel = HasMore ? $"+{probe.ExtraCount} more" : "";
-        ClearStatus();
         NotifyPreviewLayout();
     }
 
@@ -489,29 +475,12 @@ public partial class MainViewModel : ObservableObject
             : path;
     }
 
-    private void ClearStatus()
-    {
-        Error = "";
-        Success = "";
-    }
-
     private Task FailAsync(string message) => ShowStatusAsync(message, isError: true);
 
     private Task OkAsync(string message) => ShowStatusAsync(message, isError: false);
 
     private async Task ShowStatusAsync(string message, bool isError)
     {
-        if (isError)
-        {
-            Success = "";
-            Error = message;
-        }
-        else
-        {
-            Error = "";
-            Success = message;
-        }
-
         if (Ui is null)
             return;
         await Ui.ShowAlertAsync(isError ? "Error" : "Saved", message, isError);
