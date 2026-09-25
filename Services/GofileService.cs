@@ -12,8 +12,7 @@ namespace FetchIt.Services;
 
 public sealed class GofileService
 {
-    internal const string UserAgent =
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+    internal const string UserAgent = HttpFetch.UserAgent;
 
     private const string Lang = "en-US";
     internal static readonly string[] WebsiteSalts = ["12af056dacea0b", "5d4f7g8sd45fsd"];
@@ -369,20 +368,14 @@ public sealed class GofileService
 
     internal static SocketsHttpHandler CreateHandler(bool cookies)
     {
-        var handler = new SocketsHttpHandler
-        {
-            AutomaticDecompression = DecompressionMethods.All,
-            ConnectTimeout = TimeSpan.FromSeconds(3),
-            MaxConnectionsPerServer = GalleryDlService.DirectParallel,
-            PooledConnectionLifetime = TimeSpan.FromMinutes(2),
-            EnableMultipleHttp2Connections = false,
-            ConnectCallback = ConnectIPv4Async,
-            SslOptions =
-            {
-                EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
-                CertificateRevocationCheckMode = X509RevocationMode.NoCheck
-            }
-        };
+        var handler = HttpFetch.CreateHandler(
+            maxConnectionsPerServer: GalleryDlService.DirectParallel,
+            decompression: DecompressionMethods.All);
+        handler.ConnectTimeout = TimeSpan.FromSeconds(3);
+        handler.EnableMultipleHttp2Connections = false;
+        handler.ConnectCallback = ConnectIPv4Async;
+        handler.SslOptions.EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
+        handler.SslOptions.CertificateRevocationCheckMode = X509RevocationMode.NoCheck;
         if (cookies)
         {
             handler.UseCookies = true;
@@ -428,13 +421,7 @@ public sealed class GofileService
 
     internal static HttpClient CreateClient(SocketsHttpHandler handler, TimeSpan timeout)
     {
-        var http = new HttpClient(handler)
-        {
-            Timeout = timeout,
-            DefaultRequestVersion = HttpVersion.Version11,
-            DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower
-        };
-        http.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", UserAgent);
+        var http = HttpFetch.CreateClient(handler, timeout, http11: true);
         http.DefaultRequestHeaders.TryAddWithoutValidation("Origin", "https://gofile.io");
         http.DefaultRequestHeaders.Referrer = new Uri("https://gofile.io/");
         return http;

@@ -8,16 +8,7 @@ namespace FetchIt.ViewModels;
 
 public sealed partial class PreviewCard : ObservableObject, IDisposable
 {
-    private static readonly HttpClient Http = CreateHttp();
-
-    private static HttpClient CreateHttp()
-    {
-        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
-        http.DefaultRequestHeaders.TryAddWithoutValidation(
-            "User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
-        return http;
-    }
+    private static readonly HttpClient Http = HttpFetch.CreateClient(timeout: TimeSpan.FromSeconds(12));
     private CancellationTokenSource? _cts = new();
 
     public PreviewCard(MediaItem item)

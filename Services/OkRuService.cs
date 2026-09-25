@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Net;
-using System.Net.Http.Headers;
 using System.Text.Json;
 using FetchIt.Models;
 
@@ -12,9 +11,6 @@ namespace FetchIt.Services;
 /// </summary>
 public sealed class OkRuService
 {
-    internal const string UserAgent =
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-
     private static readonly string[] QualityOrder =
         ["full", "ultra", "quad", "fullhd", "hd", "sd", "low", "lowest", "mobile"];
 
@@ -151,118 +147,20 @@ public sealed class OkRuService
         IProgress<FetchProgress> progress,
         CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(dest))!);
-        var part = dest + ".part";
-
-        using var handler = new SocketsHttpHandler
-        {
-            AutomaticDecompression = DecompressionMethods.All,
-            PooledConnectionLifetime = TimeSpan.FromMinutes(5)
-        };
-        using var http = new HttpClient(handler)
-        {
-            Timeout = Timeout.InfiniteTimeSpan
-        };
-        http.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", UserAgent);
-
-        Exception? last = null;
-        for (var attempt = 0; attempt < 4; attempt++)
-        {
-            if (attempt > 0)
-                await Task.Delay(800 * attempt, cancellationToken).ConfigureAwait(false);
-
-            try
-            {
-                var have = File.Exists(part) ? new FileInfo(part).Length : 0L;
-                using var request = new HttpRequestMessage(HttpMethod.Get, url)
-                {
-                    Version = HttpVersion.Version11,
-                    VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
-                };
-                var referer = ThumbnailUrl.RefererFor(url);
-                if (referer is not null)
-                    request.Headers.Referrer = referer;
-                if (have > 0)
-                    request.Headers.Range = new RangeHeaderValue(have, null);
-
-                using var response = await http
-                    .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-                    .ConfigureAwait(false);
-
-                if (response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable)
-                {
-                    TryDelete(part);
-                    continue;
-                }
-
-                if (!response.IsSuccessStatusCode)
-                    throw new HttpRequestException(
-                        $"HTTP {(int)response.StatusCode}",
-                        null,
-                        response.StatusCode);
-
-                var append = response.StatusCode == HttpStatusCode.PartialContent && have > 0;
-                if (!append)
-                    have = 0;
-
-                var total = response.Content.Headers.ContentLength is { } length
-                    ? (append ? have + length : length)
-                    : (long?)null;
-
-                await using (var input = await response.Content.ReadAsStreamAsync(cancellationToken)
-                                 .ConfigureAwait(false))
-                await using (var output = append
-                                 ? new FileStream(part, FileMode.Append, FileAccess.Write, FileShare.None)
-                                 : File.Create(part))
-                {
-                    var meter = new DownloadMeter();
-                    meter.Reset(have);
-                    var buffer = new byte[256 * 1024];
-                    long written = have;
-                    int read;
-                    var lastReport = 0L;
-                    while ((read = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
-                    {
-                        await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken)
-                            .ConfigureAwait(false);
-                        written += read;
-                        if (written - lastReport < 256 * 1024)
-                            continue;
-                        lastReport = written;
-                        progress.Report(meter.Snapshot(written, total));
-                    }
-                }
-
-                var finalSize = new FileInfo(part).Length;
-                if (finalSize == 0)
-                {
-                    TryDelete(part);
-                    throw new InvalidOperationException("Could not save those files.");
-                }
-
-                if (total is { } expected && finalSize < expected)
-                    continue;
-
-                File.Move(part, dest, overwrite: true);
-                progress.Report(new FetchProgress
-                {
-                    Percent = 100,
-                    HasPercent = true,
-                    Status = "Saved"
-                });
-                return;
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                last = ex;
-            }
-        }
-
-        throw last ?? new InvalidOperationException("Could not save those files.");
+        using var handler = HttpFetch.CreateHandler(
+            decompression: DecompressionMethods.All,
+            pooledLifetime: TimeSpan.FromMinutes(5));
+        using var http = HttpFetch.CreateClient(handler, Timeout.InfiniteTimeSpan);
+        await HttpFetch.SaveStreamAsync(
+            http,
+            url,
+            dest,
+            cancellationToken,
+            progress,
+            retries: 4,
+            retryDelayMs: 800,
+            resume: true,
+            http11: true).ConfigureAwait(false);
     }
 
     internal static bool TryParsePlayer(string html, out JsonElement player)
@@ -448,21 +346,8 @@ public sealed class OkRuService
 
     private static HttpClient CreatePageClient()
     {
-        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-        http.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", UserAgent);
+        var http = HttpFetch.CreateClient(timeout: TimeSpan.FromSeconds(20));
         http.DefaultRequestHeaders.TryAddWithoutValidation("Accept-Language", "en-US,en;q=0.9");
         return http;
-    }
-
-    private static void TryDelete(string path)
-    {
-        try
-        {
-            if (File.Exists(path))
-                File.Delete(path);
-        }
-        catch
-        {
-        }
     }
 }

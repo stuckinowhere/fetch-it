@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Sockets;
 using FetchIt.Models;
 
@@ -37,7 +36,7 @@ internal static class GofileCdn
             "--retry-delay", "2",
             "--connect-timeout", "45",
             "-C", "-",
-            "-A", GofileService.UserAgent,
+            "-A", HttpFetch.UserAgent,
             "-e", "https://gofile.io/",
             "-H", "Origin: https://gofile.io",
             "-H", "Accept: */*",
@@ -65,7 +64,7 @@ internal static class GofileCdn
             "--ssl-no-revoke",
             "--connect-timeout", "2",
             "--max-time", "8",
-            "-A", GofileService.UserAgent,
+            "-A", HttpFetch.UserAgent,
             "-e", "https://gofile.io/",
             "-H", "Origin: https://gofile.io",
             "-H", "Accept: application/json"
@@ -161,13 +160,7 @@ internal static class GofileCdn
     }
 
     internal static bool ShouldResume(string partPath, out long have)
-    {
-        have = 0;
-        if (!File.Exists(partPath))
-            return false;
-        have = new FileInfo(partPath).Length;
-        return have > 0;
-    }
+        => HttpFetch.ShouldResume(partPath, out have);
 
     private static async Task<bool> TryHttpAsync(
         string url,
@@ -176,98 +169,36 @@ internal static class GofileCdn
         IProgress<FetchProgress>? progress,
         CancellationToken cancellationToken)
     {
-        var part = dest + ".part";
-        for (var attempt = 0; attempt < 6; attempt++)
+        try
         {
-            if (attempt > 0)
-                await Task.Delay(500 * attempt, cancellationToken).ConfigureAwait(false);
-            try
-            {
-                using var handler = GofileService.CreateHandler(cookies: true);
-                if (!string.IsNullOrEmpty(token))
-                    handler.CookieContainer!.Add(new Cookie("accountToken", token, "/", ".gofile.io"));
-                using var http = GofileService.CreateClient(handler, TimeSpan.FromMinutes(15));
-                if (!string.IsNullOrEmpty(token))
-                    http.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", "Bearer " + token);
+            using var handler = GofileService.CreateHandler(cookies: true);
+            if (!string.IsNullOrEmpty(token))
+                handler.CookieContainer!.Add(new Cookie("accountToken", token, "/", ".gofile.io"));
+            using var http = GofileService.CreateClient(handler, TimeSpan.FromMinutes(15));
+            if (!string.IsNullOrEmpty(token))
+                http.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", "Bearer " + token);
 
-                var have = ShouldResume(part, out var existing) ? existing : 0;
-                using var request = new HttpRequestMessage(HttpMethod.Get, url)
-                {
-                    Version = HttpVersion.Version11,
-                    VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
-                };
-                request.Headers.ConnectionClose = true;
-                if (have > 0)
-                    request.Headers.Range = new RangeHeaderValue(have, null);
-
-                using var response = await http
-                    .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-                    .ConfigureAwait(false);
-                if (response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable)
-                {
-                    TryDelete(part);
-                    continue;
-                }
-
-                if (!response.IsSuccessStatusCode)
-                    continue;
-
-                var append = response.StatusCode == HttpStatusCode.PartialContent && have > 0;
-                if (!append)
-                    have = 0;
-
-                var total = response.Content.Headers.ContentLength is { } length
-                    ? (append ? have + length : length)
-                    : (long?)null;
-
-                await using (var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
-                await using (var output = append
-                    ? new FileStream(part, FileMode.Append, FileAccess.Write, FileShare.None)
-                    : File.Create(part))
-                {
-                    var meter = new DownloadMeter();
-                    meter.Reset(have);
-                    var buffer = new byte[256 * 1024];
-                    long written = have;
-                    var lastReport = 0L;
-                    int read;
-                    while ((read = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
-                    {
-                        await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken)
-                            .ConfigureAwait(false);
-                        written += read;
-                        if (progress is null || written - lastReport < 256 * 1024)
-                            continue;
-                        lastReport = written;
-                        progress.Report(meter.Snapshot(written, total));
-                    }
-                }
-
-                var fileWritten = new FileInfo(part).Length;
-                if (fileWritten == 0)
-                    continue;
-                if (total is { } expected && fileWritten < expected)
-                    continue;
-
-                File.Move(part, dest, overwrite: true);
-                progress?.Report(new FetchProgress
-                {
-                    Percent = 100,
-                    HasPercent = true,
-                    Status = "Saved"
-                });
-                return true;
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch
-            {
-            }
+            await HttpFetch.SaveStreamAsync(
+                http,
+                url,
+                dest,
+                cancellationToken,
+                progress,
+                retries: 6,
+                retryDelayMs: 500,
+                resume: true,
+                http11: true,
+                configure: request => request.Headers.ConnectionClose = true).ConfigureAwait(false);
+            return true;
         }
-
-        return false;
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static async Task<bool> TryCurlAsync(
@@ -289,17 +220,5 @@ internal static class GofileCdn
             return false;
         File.Move(part, dest, overwrite: true);
         return true;
-    }
-
-    private static void TryDelete(string path)
-    {
-        try
-        {
-            if (File.Exists(path))
-                File.Delete(path);
-        }
-        catch
-        {
-        }
     }
 }
