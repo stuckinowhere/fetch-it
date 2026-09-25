@@ -95,12 +95,7 @@ public sealed class MediaFetcher
         {
             throw;
         }
-        catch (InvalidOperationException ex) when (
-            ex.Message.Contains("password", StringComparison.OrdinalIgnoreCase)
-            || ex.Message.Contains("Windows blocked", StringComparison.OrdinalIgnoreCase)
-            || ex.Message == "Not a GoFile link."
-            || ex.Message == GofileService.UnreachableMessage
-            || ex.Message == GofileService.SslMessage)
+        catch (InvalidOperationException ex) when (IsFinalGofileError(ex))
         {
             throw;
         }
@@ -111,6 +106,21 @@ public sealed class MediaFetcher
                 .ConfigureAwait(false);
         }
     }
+
+    internal static bool IsFinalGofileError(InvalidOperationException ex)
+    {
+        var message = ex.Message;
+        return message.Contains("password", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("Windows blocked", StringComparison.OrdinalIgnoreCase)
+               || message == "Not a GoFile link."
+               || message == GofileService.UnreachableMessage
+               || message == GofileService.SslMessage
+               || IsPartialSaveMessage(message);
+    }
+
+    internal static bool IsPartialSaveMessage(string message)
+        => message.StartsWith("Saved ", StringComparison.Ordinal)
+           && message.Contains(" of ", StringComparison.Ordinal);
 
     private Task<MediaProbe> RunProbe(
         EngineKind engine,
