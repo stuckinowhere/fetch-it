@@ -95,12 +95,7 @@ public sealed class MediaFetcher
         {
             throw;
         }
-        catch (InvalidOperationException ex) when (
-            ex.Message.Contains("password", StringComparison.OrdinalIgnoreCase)
-            || ex.Message.Contains("Windows blocked", StringComparison.OrdinalIgnoreCase)
-            || ex.Message == "Not a GoFile link."
-            || ex.Message == GofileService.UnreachableMessage
-            || ex.Message == GofileService.SslMessage)
+        catch (Exception ex) when (!ShouldFallbackFromGofile(ex))
         {
             throw;
         }
@@ -111,6 +106,30 @@ public sealed class MediaFetcher
                 .ConfigureAwait(false);
         }
     }
+
+    // Partial GoFile saves already wrote files; a gallery-dl retry can overwrite them.
+    internal static bool ShouldFallbackFromGofile(Exception ex)
+    {
+        if (ex is OperationCanceledException)
+            return false;
+        if (ex is not InvalidOperationException ioe)
+            return true;
+
+        var message = ioe.Message;
+        if (message.Contains("password", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("Windows blocked", StringComparison.OrdinalIgnoreCase)
+            || message == "Not a GoFile link."
+            || message == GofileService.UnreachableMessage
+            || message == GofileService.SslMessage)
+            return false;
+
+        return !IsPartialSave(message);
+    }
+
+    internal static bool IsPartialSave(string message)
+        => message.StartsWith("Saved ", StringComparison.Ordinal)
+           && message.Contains(" of ", StringComparison.Ordinal)
+           && message.EndsWith(" files.", StringComparison.Ordinal);
 
     private Task<MediaProbe> RunProbe(
         EngineKind engine,
