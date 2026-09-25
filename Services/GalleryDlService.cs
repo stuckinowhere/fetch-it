@@ -222,8 +222,6 @@ public sealed class GalleryDlService
 
         var code = await ProcessRunner.RunAsync(tools.GalleryDl, args, line =>
         {
-            if (line.Contains("error", StringComparison.OrdinalIgnoreCase))
-                return;
             if (LooksLikeSavedFile(line))
             {
                 done++;
@@ -237,14 +235,29 @@ public sealed class GalleryDlService
             }
         }, cancellationToken, environment: tools.GalleryEnvironment).ConfigureAwait(false);
 
-        if (code != 0 && done == 0)
+        EnsureToolSucceeded(code, done, fileCount);
+    }
+
+    internal static void EnsureToolSucceeded(int code, int done, int fileCount)
+    {
+        if (code == 0)
+            return;
+        if (done <= 0)
             throw new InvalidOperationException("Could not save those files.");
+        var total = Math.Max(fileCount, done);
+        throw new InvalidOperationException($"Saved {done} of {total} files.");
     }
 
     internal static bool LooksLikeSavedFile(string line)
     {
         var trimmed = line.Trim();
         if (trimmed.Length == 0)
+            return false;
+        if (trimmed.Contains("error", StringComparison.OrdinalIgnoreCase)
+            || trimmed.Contains("warning", StringComparison.OrdinalIgnoreCase))
+            return false;
+        // [instagram][info] Visiting https://... is a log line, not a save.
+        if (trimmed.StartsWith('[') && trimmed.Contains("][", StringComparison.Ordinal))
             return false;
         return trimmed.Contains('\\') || trimmed.Contains('/') || trimmed.StartsWith('#');
     }
