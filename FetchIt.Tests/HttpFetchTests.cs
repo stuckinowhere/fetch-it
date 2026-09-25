@@ -11,7 +11,8 @@ public class HttpFetchTests
     {
         using var http = HttpFetch.CreateClient(timeout: TimeSpan.FromSeconds(1));
         Assert.Equal(HttpFetch.UserAgent, GofileService.UserAgent);
-        Assert.Equal(HttpFetch.UserAgent, http.DefaultRequestHeaders.UserAgent.ToString());
+        Assert.True(http.DefaultRequestHeaders.TryGetValues("User-Agent", out var values));
+        Assert.Contains(HttpFetch.UserAgent, values);
     }
 
     [Fact]
