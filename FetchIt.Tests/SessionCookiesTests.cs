@@ -21,7 +21,7 @@ public class SessionCookiesTests
         }
         finally
         {
-            try { File.Delete(path); } catch { /* ignore */ }
+            try { File.Delete(path); } catch { }
         }
     }
 

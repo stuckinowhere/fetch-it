@@ -24,20 +24,20 @@ public class GofileTests
     public void Website_token_matches_gallery_dl()
     {
         var token = GofileService.WebsiteToken(
-            GofileService.UserAgent,
+            HttpFetch.UserAgent,
             "guest-token",
             1_777_766_400);
         Assert.Equal(64, token.Length);
         Assert.Equal(
-            GofileService.WebsiteToken(GofileService.UserAgent, "guest-token", 1_777_766_400 + 10),
+            GofileService.WebsiteToken(HttpFetch.UserAgent, "guest-token", 1_777_766_400 + 10),
             token);
         Assert.NotEqual(
             token,
-            GofileService.WebsiteToken(GofileService.UserAgent, "guest-token", 1_777_766_400 + 14400));
+            GofileService.WebsiteToken(HttpFetch.UserAgent, "guest-token", 1_777_766_400 + 14400));
         Assert.NotEqual(
             token,
             GofileService.WebsiteToken(
-                GofileService.UserAgent, "guest-token", 1_777_766_400, GofileService.WebsiteSalts[1]));
+                HttpFetch.UserAgent, "guest-token", 1_777_766_400, GofileService.WebsiteSalts[1]));
     }
 
     [Fact]
@@ -158,7 +158,7 @@ public class GofileTests
         File.WriteAllBytes(part, new byte[12]);
         try
         {
-            Assert.True(GofileCdn.ShouldResume(part, out var have));
+            Assert.True(HttpFetch.ShouldResume(part, out var have));
             Assert.Equal(12, have);
         }
         finally

@@ -113,9 +113,6 @@ public static class ThumbnailUrl
         return null;
     }
 
-    public static bool NeedsXReferer(string url)
-        => RefererFor(url)?.Host == "x.com";
-
     internal static int ScoreThumbWidth(int width)
     {
         if (width <= 0)

@@ -12,8 +12,6 @@ namespace FetchIt.Services;
 
 public sealed class GofileService
 {
-    internal const string UserAgent = HttpFetch.UserAgent;
-
     private const string Lang = "en-US";
     internal static readonly string[] WebsiteSalts = ["12af056dacea0b", "5d4f7g8sd45fsd"];
     private const long TokenWindow = 14400;
@@ -446,7 +444,7 @@ public sealed class GofileService
         {
             var website = string.IsNullOrEmpty(token)
                 ? null
-                : WebsiteToken(UserAgent, token, DateTimeOffset.UtcNow.ToUnixTimeSeconds(), salt);
+                : WebsiteToken(HttpFetch.UserAgent, token, DateTimeOffset.UtcNow.ToUnixTimeSeconds(), salt);
             var curlBody = await GofileCdn.ApiGetAsync(url, token, website, cancellationToken)
                 .ConfigureAwait(false);
             if (curlBody is not null)
@@ -469,7 +467,7 @@ public sealed class GofileService
             request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
             request.Headers.TryAddWithoutValidation(
                 "X-Website-Token",
-                WebsiteToken(UserAgent, token, DateTimeOffset.UtcNow.ToUnixTimeSeconds(), salt));
+                WebsiteToken(HttpFetch.UserAgent, token, DateTimeOffset.UtcNow.ToUnixTimeSeconds(), salt));
         }
 
         HttpResponseMessage response;

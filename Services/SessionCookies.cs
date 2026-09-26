@@ -19,19 +19,7 @@ public static class NetscapeCookies
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
 
-        using var writer = new StreamWriter(path);
-        writer.WriteLine("# Netscape HTTP Cookie File");
-        foreach (var cookie in cookies)
-        {
-            if (string.IsNullOrWhiteSpace(cookie.Name))
-                continue;
-            var domain = string.IsNullOrWhiteSpace(cookie.Domain) ? ".instagram.com" : cookie.Domain;
-            var flag = domain.StartsWith('.') ? "TRUE" : "FALSE";
-            var pathPart = string.IsNullOrWhiteSpace(cookie.Path) ? "/" : cookie.Path;
-            var secure = cookie.Secure ? "TRUE" : "FALSE";
-            var expires = cookie.ExpiresUnix < 0 ? 0 : cookie.ExpiresUnix;
-            writer.WriteLine($"{domain}\t{flag}\t{pathPart}\t{secure}\t{expires}\t{cookie.Name}\t{cookie.Value}");
-        }
+        File.WriteAllText(path, ToText(cookies));
     }
 
     public static string ToText(IEnumerable<CookieRow> cookies)
@@ -180,7 +168,6 @@ public static class SessionCookies
         }
         catch
         {
-            // keep the legacy file if protect fails
         }
     }
 
