@@ -91,28 +91,13 @@ public sealed class GalleryDlService
         return jobs;
     }
 
-    internal static Task DownloadDirectAsync(
-        IReadOnlyList<(string Url, string Path)> jobs,
-        IProgress<FetchProgress> progress,
-        CancellationToken cancellationToken)
-        => DownloadDirectAsync(jobs, progress, cancellationToken, http: null);
-
     internal static async Task DownloadDirectAsync(
         IReadOnlyList<(string Url, string Path)> jobs,
         IProgress<FetchProgress> progress,
-        CancellationToken cancellationToken,
-        HttpClient? http,
-        int maxParallel = DirectParallel)
+        CancellationToken cancellationToken)
     {
-        var owns = http is null;
-        SocketsHttpHandler? handler = null;
-        if (owns)
-        {
-            handler = HttpFetch.CreateHandler(maxConnectionsPerServer: DirectParallel);
-            http = HttpFetch.CreateClient(handler, Timeout.InfiniteTimeSpan);
-        }
-
-        var client = http!;
+        using var handler = HttpFetch.CreateHandler(maxConnectionsPerServer: DirectParallel);
+        using var http = HttpFetch.CreateClient(handler, Timeout.InfiniteTimeSpan);
         var leftover = jobs.ToList();
         var total = jobs.Count;
         var done = 0;
@@ -133,13 +118,13 @@ public sealed class GalleryDlService
                     {
                         if (total == 1)
                         {
-                            await HttpFetch.SaveStreamAsync(client, job.Url, job.Path, token, progress)
+                            await HttpFetch.SaveStreamAsync(http, job.Url, job.Path, token, progress)
                                 .ConfigureAwait(false);
                             Interlocked.Increment(ref done);
                         }
                         else
                         {
-                            await HttpFetch.SaveStreamAsync(client, job.Url, job.Path, token)
+                            await HttpFetch.SaveStreamAsync(http, job.Url, job.Path, token)
                                 .ConfigureAwait(false);
                             var n = Interlocked.Increment(ref done);
                             progress.Report(new FetchProgress
@@ -162,26 +147,15 @@ public sealed class GalleryDlService
             leftover = failed.ToList();
         }
 
-        try
-        {
-            var firstParallel = total <= 1 ? 1 : Math.Min(Math.Max(1, maxParallel), total);
-            await AttemptAsync(leftover, firstParallel).ConfigureAwait(false);
-            if (leftover.Count > 0)
-                await AttemptAsync(leftover, 1).ConfigureAwait(false);
+        var firstParallel = total <= 1 ? 1 : Math.Min(DirectParallel, total);
+        await AttemptAsync(leftover, firstParallel).ConfigureAwait(false);
+        if (leftover.Count > 0)
+            await AttemptAsync(leftover, 1).ConfigureAwait(false);
 
-            if (done == 0)
-                throw new InvalidOperationException("Could not save those files.");
-            if (leftover.Count > 0)
-                throw new InvalidOperationException($"Saved {done} of {total} files.");
-        }
-        finally
-        {
-            if (owns)
-            {
-                client.Dispose();
-                handler?.Dispose();
-            }
-        }
+        if (done == 0)
+            throw new InvalidOperationException("Could not save those files.");
+        if (leftover.Count > 0)
+            throw new InvalidOperationException($"Saved {done} of {total} files.");
     }
 
     private async Task DownloadWithToolAsync(

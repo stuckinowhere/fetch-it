@@ -29,10 +29,10 @@ public class ThumbnailUrlTests
     }
 
     [Theory]
-    [InlineData("https://pbs.twimg.com/media/abc?format=jpg&name=orig", true)]
-    [InlineData("https://i.ytimg.com/vi/dQw4w9wgXcQ/hqdefault.jpg", false)]
-    public void X_referer_only_for_twitter_cdn(string url, bool expected)
-        => Assert.Equal(expected, ThumbnailUrl.NeedsXReferer(url));
+    [InlineData("https://pbs.twimg.com/media/abc?format=jpg&name=orig", "https://x.com/")]
+    [InlineData("https://i.ytimg.com/vi/dQw4w9wgXcQ/hqdefault.jpg", null)]
+    public void X_referer_only_for_twitter_cdn(string url, string? expected)
+        => Assert.Equal(expected is null ? null : new Uri(expected), ThumbnailUrl.RefererFor(url));
 
     [Fact]
     public void Mid_width_scores_higher_than_huge()

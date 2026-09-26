@@ -114,7 +114,6 @@ public static class ToolBootstrapper
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException)
         {
-            // Instagram falls back to yt-dlp if Python or the wheel is missing.
         }
 
         return TryFind() ?? existing ?? throw new InvalidOperationException("Could not install yt-dlp or ffmpeg.");

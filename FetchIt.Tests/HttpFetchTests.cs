@@ -7,10 +7,9 @@ namespace FetchIt.Tests;
 public class HttpFetchTests
 {
     [Fact]
-    public void UserAgent_is_shared()
+    public void CreateClient_sends_chrome_user_agent()
     {
         using var http = HttpFetch.CreateClient(timeout: TimeSpan.FromSeconds(1));
-        Assert.Equal(HttpFetch.UserAgent, GofileService.UserAgent);
         Assert.Contains("Chrome/131.0.0.0", http.DefaultRequestHeaders.UserAgent.ToString(), StringComparison.Ordinal);
     }
 

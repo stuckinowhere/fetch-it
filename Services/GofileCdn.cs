@@ -159,9 +159,6 @@ internal static class GofileCdn
         }
     }
 
-    internal static bool ShouldResume(string partPath, out long have)
-        => HttpFetch.ShouldResume(partPath, out have);
-
     private static async Task<bool> TryHttpAsync(
         string url,
         string dest,
