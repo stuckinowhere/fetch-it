@@ -181,4 +181,16 @@ public class GofileTests
             "GoFile is blocked on this network. Try a VPN.",
             GofileService.UnreachableMessage);
     }
+
+    [Fact]
+    public void Partial_gofile_save_does_not_fall_through_to_gallery()
+    {
+        Assert.True(MediaFetcher.IsFinalGofileError(
+            new InvalidOperationException("Saved 3 of 10 files.")));
+        Assert.True(MediaFetcher.IsPartialSaveMessage("Saved 3 of 10 files."));
+        Assert.False(MediaFetcher.IsFinalGofileError(
+            new InvalidOperationException("Could not save those files.")));
+        Assert.True(MediaFetcher.IsFinalGofileError(
+            new InvalidOperationException(GofileService.UnreachableMessage)));
+    }
 }
