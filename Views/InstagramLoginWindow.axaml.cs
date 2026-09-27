@@ -29,7 +29,6 @@ public partial class InstagramLoginWindow : Window
                 return;
             }
 
-            Web.AllowedHostSuffixes = ["instagram.com", "instagr.am"];
             core.Navigate("https://www.instagram.com/accounts/login/");
             while (!_cts.IsCancellationRequested)
             {

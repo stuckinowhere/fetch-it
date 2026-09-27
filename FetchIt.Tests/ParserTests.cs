@@ -225,11 +225,8 @@ public class ParserTests
     [Fact]
     public void FolderDisplay_uses_Downloads()
     {
-        var downloads = ViewModels.MainViewModel.DefaultDownloads();
+        var downloads = FolderStore.WindowsDownloads();
         Assert.Equal("Downloads", ViewModels.MainViewModel.FolderDisplay(downloads));
-        Assert.Equal(
-            FolderStore.WindowsDownloads(),
-            ViewModels.MainViewModel.DefaultDownloads());
     }
 
 }

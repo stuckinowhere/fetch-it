@@ -39,14 +39,18 @@ public static class MediaRouter
     public static string BunkrHomeMessage =>
         "Paste a Bunkr file or album link, not the homepage.";
 
-    public static bool IsInstagram(Uri uri) => IsInstagramHost(uri);
+    public static bool IsInstagram(Uri uri)
+    {
+        var host = NormalizedHost(uri);
+        return host is "instagram.com" or "instagr.am";
+    }
 
     public static string CanonicalPublicUrl(string url)
     {
         if (!TryParseHttpUrl(url, out var uri))
             return url.Trim();
 
-        if (!IsInstagramHost(uri))
+        if (!IsInstagram(uri))
         {
             if (IsOkRu(uri))
                 return CanonicalOkRu(uri);
@@ -141,12 +145,6 @@ public static class MediaRouter
         }
 
         return $"https://ok.ru{uri.PathAndQuery}";
-    }
-
-    private static bool IsInstagramHost(Uri uri)
-    {
-        var host = NormalizedHost(uri);
-        return host is "instagram.com" or "instagr.am";
     }
 
     private static string NormalizedHost(Uri uri)

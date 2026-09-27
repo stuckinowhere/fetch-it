@@ -10,7 +10,6 @@ internal static class ProcessRunner
         IEnumerable<string> arguments,
         Action<string>? onLine,
         CancellationToken cancellationToken,
-        string? workingDirectory = null,
         IReadOnlyDictionary<string, string>? environment = null)
     {
         var start = new ProcessStartInfo
@@ -23,8 +22,6 @@ internal static class ProcessRunner
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8
         };
-        if (!string.IsNullOrWhiteSpace(workingDirectory))
-            start.WorkingDirectory = workingDirectory;
         if (environment is not null)
         {
             foreach (var pair in environment)

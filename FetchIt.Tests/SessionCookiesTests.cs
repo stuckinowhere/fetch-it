@@ -10,11 +10,11 @@ public class SessionCookiesTests
         var path = Path.Combine(Path.GetTempPath(), "fetchit-cookies-" + Guid.NewGuid().ToString("N") + ".txt");
         try
         {
-            NetscapeCookies.Write(path,
+            File.WriteAllText(path, NetscapeCookies.ToText(
             [
                 new CookieRow(".instagram.com", "/", true, 0, "sessionid", "abc"),
                 new CookieRow(".instagram.com", "/", true, 0, "ds_user_id", "1")
-            ]);
+            ]));
             var text = File.ReadAllText(path);
             Assert.True(SessionCookies.LooksLikeSession(text));
             Assert.Contains(".instagram.com\tTRUE\t/\tTRUE\t0\tsessionid\tabc", text);

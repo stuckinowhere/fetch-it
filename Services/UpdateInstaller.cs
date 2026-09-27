@@ -11,7 +11,6 @@ public sealed class UpdateInstaller : IDisposable
     public const string SilentArgs = "/SILENT /NORESTART /SUPPRESSMSGBOXES";
 
     private readonly HttpClient _http;
-    private readonly bool _ownsHttp;
     private readonly long _minBytes;
     private readonly long _maxBytes;
 
@@ -25,7 +24,6 @@ public sealed class UpdateInstaller : IDisposable
         _http = handler is null
             ? new HttpClient { Timeout = TimeSpan.FromMinutes(10) }
             : new HttpClient(handler, disposeHandler: false) { Timeout = TimeSpan.FromMinutes(10) };
-        _ownsHttp = true;
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("WasdFetchIt-Updater");
     }
 
@@ -160,11 +158,7 @@ public sealed class UpdateInstaller : IDisposable
         ShutdownApp();
     }
 
-    public void Dispose()
-    {
-        if (_ownsHttp)
-            _http.Dispose();
-    }
+    public void Dispose() => _http.Dispose();
 
     private static void TryDelete(string path)
     {

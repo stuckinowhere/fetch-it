@@ -63,7 +63,6 @@ public sealed class GitHubUpdateClient : IDisposable
 
     private readonly HttpClient _http;
     private readonly Version _current;
-    private readonly bool _ownsHttp;
 
     public GitHubUpdateClient(HttpMessageHandler? handler = null, Version? current = null)
     {
@@ -71,7 +70,6 @@ public sealed class GitHubUpdateClient : IDisposable
         _http = handler is null
             ? new HttpClient { Timeout = TimeSpan.FromSeconds(8) }
             : new HttpClient(handler, disposeHandler: false) { Timeout = TimeSpan.FromSeconds(8) };
-        _ownsHttp = true;
 
         _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("WasdFetchIt", _current.ToString()));
         _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
@@ -197,9 +195,5 @@ public sealed class GitHubUpdateClient : IDisposable
         return true;
     }
 
-    public void Dispose()
-    {
-        if (_ownsHttp)
-            _http.Dispose();
-    }
+    public void Dispose() => _http.Dispose();
 }
