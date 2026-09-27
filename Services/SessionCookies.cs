@@ -13,15 +13,6 @@ public readonly record struct CookieRow(
 
 public static class NetscapeCookies
 {
-    public static void Write(string path, IEnumerable<CookieRow> cookies)
-    {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-
-        File.WriteAllText(path, ToText(cookies));
-    }
-
     public static string ToText(IEnumerable<CookieRow> cookies)
     {
         using var writer = new StringWriter();

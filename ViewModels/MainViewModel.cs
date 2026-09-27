@@ -462,11 +462,9 @@ public partial class MainViewModel : ObservableObject
             FitPreview(_viewportWidth, _viewportHeight);
     }
 
-    internal static string DefaultDownloads() => FolderStore.WindowsDownloads();
-
     internal static string FolderDisplay(string path)
     {
-        var downloads = DefaultDownloads();
+        var downloads = FolderStore.WindowsDownloads();
         if (string.Equals(path.TrimEnd(Path.DirectorySeparatorChar), downloads.TrimEnd(Path.DirectorySeparatorChar),
                 StringComparison.OrdinalIgnoreCase))
             return "Downloads";
