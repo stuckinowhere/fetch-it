@@ -1,4 +1,3 @@
-using System.Net.Http;
 using System.Text.Json;
 using FetchIt.Models;
 using FetchIt.Services;
@@ -152,31 +151,5 @@ public class OkRuTests
         Assert.Equal(
             new Uri("https://ok.ru/"),
             ThumbnailUrl.RefererFor("https://iv.okcdn.ru/i?r=abc"));
-    }
-
-    [Fact]
-    public async Task Live_user_video_when_reachable()
-    {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(45));
-        try
-        {
-            var probe = await new OkRuService().ProbeAsync(
-                "https://ok.ru/video/7513892063791",
-                null,
-                cts.Token);
-            Assert.True(probe.FileCount >= 1, probe.Summary);
-            Assert.Contains("imperio", probe.Title, StringComparison.OrdinalIgnoreCase);
-            Assert.False(string.IsNullOrEmpty(probe.Items[0].DownloadUrl));
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (HttpRequestException)
-        {
-        }
-        catch (InvalidOperationException)
-        {
-            // ok.ru can geo-block or change the player markup.
-        }
     }
 }

@@ -13,4 +13,4 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - run: dotnet test FetchIt.sln -c Release --nologo --filter FullyQualifiedName!~E2eProbeTests
+      - run: dotnet test FetchIt.sln -c Release --nologo
