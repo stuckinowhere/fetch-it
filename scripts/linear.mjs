@@ -1,19 +1,13 @@
 #!/usr/bin/env node
-// linear.mjs — minimal Linear helper (no dependencies, Node 18+).
+// linear.mjs — minimal Linear helper (no dependencies).
 // Reads LINEAR_API_KEY from env or <repoRoot>/.env.local.
 //
 // Usage:
-//   node scripts/linear.mjs whoami
-//   node scripts/linear.mjs teams
-//   node scripts/linear.mjs projects
-//   node scripts/linear.mjs project-create <name> --team <teamId>
-//   node scripts/linear.mjs states --team <teamId>
 //   node scripts/linear.mjs create --project <name|id> --title <t> [--desc <d>] [--state <name>]
-//   node scripts/linear.mjs list --project <name|id>
 //   node scripts/linear.mjs comment <issueId> <body...>
 //   node scripts/linear.mjs state <issueId> <stateName>
-//   node scripts/linear.mjs delete <issueId>
-//   node scripts/linear.mjs raw '<graphql>' [--var key=value]
+//   node scripts/linear.mjs find --project <name|id> --title <prefix>
+//   node scripts/linear.mjs find-key <ISSUE-KEY>
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -114,46 +108,6 @@ const { flags, pos } = parseArgs(rest);
 loadEnv();
 
 switch (cmd) {
-  case 'whoami': {
-    const d = await gql('{ viewer { id name email } organization { name urlKey } }');
-    console.log(`${d.viewer.name} <${d.viewer.email}> @ ${d.organization.name} (${d.organization.urlKey})`);
-    break;
-  }
-  case 'teams': {
-    const d = await gql('{ teams(first: 50) { nodes { id key name } } }');
-    for (const t of d.teams.nodes) console.log(`${t.key}\t${t.name}\t${t.id}`);
-    break;
-  }
-  case 'projects': {
-    const d = await gql('{ projects(first: 100) { nodes { id name url } } }');
-    for (const p of d.projects.nodes) console.log(`${p.name}\t${p.url}\t${p.id}`);
-    break;
-  }
-  case 'project-create': {
-    const name = pos[0];
-    if (!name || !flags['team']) {
-      console.error('Usage: project-create <name> --team <teamId>');
-      process.exit(1);
-    }
-    const d = await gql(
-      `mutation($i: ProjectCreateInput!) { projectCreate(input: $i) { success project { id name url } } }`,
-      { i: { name, teamIds: [flags['team']] } },
-    );
-    console.log(`${d.projectCreate.project.name}\t${d.projectCreate.project.url}\t${d.projectCreate.project.id}`);
-    break;
-  }
-  case 'states': {
-    if (!flags['team']) {
-      console.error('Usage: states --team <teamId>');
-      process.exit(1);
-    }
-    const d = await gql(
-      `query($t: WorkflowStateFilter!) { workflowStates(filter: $t, first: 50) { nodes { id name type } } }`,
-      { t: { team: { id: { eq: flags['team'] } } } },
-    );
-    for (const s of d.workflowStates.nodes) console.log(`${s.name}\t${s.type}\t${s.id}`);
-    break;
-  }
   case 'create': {
     if (!flags['project'] || !flags['title']) {
       console.error('Usage: create --project <name|id> --title <t> [--desc <d>] [--state <name>]');
@@ -169,19 +123,6 @@ switch (cmd) {
     );
     const iss = d.issueCreate.issue;
     console.log(`${iss.identifier}\t${iss.title}\n${iss.url}\nid: ${iss.id}`);
-    break;
-  }
-  case 'list': {
-    if (!flags['project']) {
-      console.error('Usage: list --project <name|id>');
-      process.exit(1);
-    }
-    const p = await resolveProject(flags['project']);
-    const d = await gql(
-      `query($f: IssueFilter!) { issues(filter: $f, first: 50) { nodes { id identifier title state { name } url } } }`,
-      { f: { project: { id: { eq: p.id } } } },
-    );
-    for (const i of d.issues.nodes) console.log(`${i.identifier}\t[${i.state.name}]\t${i.title}\t${i.id}`);
     break;
   }
   case 'comment': {
@@ -242,29 +183,7 @@ switch (cmd) {
     if (hit) console.log(hit.id);
     break;
   }
-  case 'delete': {
-    if (!pos[0]) {
-      console.error('Usage: delete <issueId>');
-      process.exit(1);
-    }
-    await gql(`mutation($id: String!) { issueDelete(id: $id) { success } }`, { id: pos[0] });
-    console.log('deleted');
-    break;
-  }
-  case 'raw': {
-    const vars = {};
-    const varFlags = Array.isArray(flags['var']) ? flags['var'] : flags['var'] ? [flags['var']] : [];
-    for (const v of varFlags) {
-      const eq = v.indexOf('=');
-      vars[v.slice(0, eq)] = v.slice(eq + 1);
-    }
-    console.log(JSON.stringify(await gql(pos.join(' '), vars), null, 2));
-    break;
-  }
   default:
-    console.error(
-      'Commands: whoami, teams, projects, project-create, states, create, list, comment, state, delete, raw',
-    );
+    console.error('Commands: create, comment, state, find, find-key');
     process.exit(1);
 }
-
