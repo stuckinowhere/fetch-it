@@ -28,18 +28,10 @@ jobs:
           $version = $tag.TrimStart("v")
           echo "VERSION=$version" >> $env:GITHUB_ENV
           $out = Join-Path $pwd "publish\win-x64"
-          New-Item -ItemType Directory -Force -Path $out, artifacts | Out-Null
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
 
-          dotnet publish FetchIt.csproj -c Release -r win-x64 --self-contained true `
-            /p:PublishSingleFile=true `
-            /p:IncludeNativeLibrariesForSelfExtract=true `
-            /p:DebugType=none `
-            /p:Version=$version `
-            /p:InformationalVersion=$tag `
-            -o $out
+          & .\scripts\Publish-WinX64.ps1 -OutDir $out -Version $version -Tag $tag
 
-          & .\scripts\Get-Tools.ps1 -OutDir $out
-          Copy-Item Assets/fetchit.ico "$out/FetchIt.ico" -Force
           Copy-Item README.md $out -Force
           Copy-Item LICENSE $out -Force
 
