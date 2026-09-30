@@ -4,12 +4,6 @@
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot\..
 
-if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-    Write-Host "Install the .NET 8 SDK, then run this again:"
-    Write-Host "https://dotnet.microsoft.com/download/dotnet/8.0"
-    exit 1
-}
-
 function Find-Iscc {
     $candidates = @(
         "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
@@ -44,15 +38,7 @@ $version = $csproj.Project.PropertyGroup.Version | Select-Object -First 1
 if ([string]::IsNullOrWhiteSpace($version)) { $version = "1.0.0" }
 
 $out = Join-Path $PWD "publish\win-x64"
-dotnet publish .\FetchIt.csproj -c Release -r win-x64 --self-contained true `
-    /p:PublishSingleFile=true `
-    /p:IncludeNativeLibrariesForSelfExtract=true `
-    /p:DebugType=none `
-    /p:Version=$version `
-    -o $out
-
-& .\scripts\Get-Tools.ps1 -OutDir $out
-Copy-Item .\Assets\fetchit.ico (Join-Path $out "FetchIt.ico") -Force
+& .\scripts\Publish-WinX64.ps1 -OutDir $out -Version $version
 New-Item -ItemType Directory -Force -Path .\artifacts | Out-Null
 
 & $iscc `
