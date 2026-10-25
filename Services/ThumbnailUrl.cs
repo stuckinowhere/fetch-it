@@ -99,6 +99,8 @@ public static class ThumbnailUrl
             return new Uri("https://x.com/");
         if (host is "gofile.io" || host.Contains("gofile", StringComparison.OrdinalIgnoreCase))
             return new Uri("https://gofile.io/");
+        if (KemonoService.SiteRoot(host) is { } kemonoRoot)
+            return new Uri(kemonoRoot + "/");
         if (host is "ok.ru" or "odnoklassniki.ru"
             || host.EndsWith(".okcdn.ru", StringComparison.OrdinalIgnoreCase)
             || host.EndsWith(".vkuser.net", StringComparison.OrdinalIgnoreCase)

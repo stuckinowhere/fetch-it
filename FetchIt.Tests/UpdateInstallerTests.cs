@@ -86,6 +86,48 @@ public class UpdateInstallerTests
             html.DownloadSetupAsync(url, null, CancellationToken.None));
     }
 
+    [Theory]
+    [InlineData("https://github.com/stuckinowhere/fetch-it/releases/download/v1.1.4/fetch-it-v1.1.4-win-x64.zip", true)]
+    [InlineData("https://github.com/stuckinowhere/fetch-it/releases/download/v1.1.4/fetch-it-v1.1.4-win-x64-setup.exe", false)]
+    [InlineData("https://evil.example/file.zip", false)]
+    public void IsZipDownload_requires_github_zip(string url, bool expected)
+        => Assert.Equal(expected, UpdateInstaller.IsZipDownload(url));
+
+    [Fact]
+    public void IsSupportedDownload_accepts_both_setup_and_zip()
+    {
+        Assert.True(UpdateInstaller.IsSupportedDownload("https://github.com/stuckinowhere/fetch-it/releases/download/v1.0.0/setup.exe"));
+        Assert.True(UpdateInstaller.IsSupportedDownload("https://github.com/stuckinowhere/fetch-it/releases/download/v1.0.0/app.zip"));
+        Assert.False(UpdateInstaller.IsSupportedDownload("https://github.com/stuckinowhere/fetch-it/releases/tag/v1.0.0"));
+    }
+
+    [Fact]
+    public void ApplyZip_extracts_files_correctly()
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "ZipTest_" + Guid.NewGuid().ToString("N"));
+        var zipPath = Path.Combine(Path.GetTempPath(), "test_" + Guid.NewGuid().ToString("N") + ".zip");
+        Directory.CreateDirectory(temp);
+        try
+        {
+            using (var zip = System.IO.Compression.ZipFile.Open(zipPath, System.IO.Compression.ZipArchiveMode.Create))
+            {
+                var entry = zip.CreateEntry("sub/test.txt");
+                using var writer = new StreamWriter(entry.Open());
+                writer.Write("hello world");
+            }
+
+            UpdateInstaller.ApplyZip(zipPath, temp);
+            var extracted = Path.Combine(temp, "sub", "test.txt");
+            Assert.True(File.Exists(extracted));
+            Assert.Equal("hello world", File.ReadAllText(extracted));
+        }
+        finally
+        {
+            try { Directory.Delete(temp, true); } catch { }
+            try { File.Delete(zipPath); } catch { }
+        }
+    }
+
     private sealed class BytesHandler : HttpMessageHandler
     {
         private readonly string _url;

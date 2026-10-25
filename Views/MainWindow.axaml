@@ -187,12 +187,16 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <TextBlock Text="{Binding MoreLabel}"
-                                   IsVisible="{Binding HasMore}"
-                                   FontFamily="{StaticResource Plex}"
-                                   FontSize="14"
-                                   FontWeight="Medium"
-                                   Margin="0,0,0,8" />
+                        <Button Classes="Flat"
+                                Content="{Binding MoreLabel}"
+                                Command="{Binding LoadMoreCommand}"
+                                IsVisible="{Binding HasMore}"
+                                FontFamily="{StaticResource Plex}"
+                                FontSize="14"
+                                FontWeight="Medium"
+                                Cursor="Hand"
+                                HorizontalAlignment="Center"
+                                Margin="0,4,0,12" />
                     </StackPanel>
                 </ScrollViewer>
             </Grid>

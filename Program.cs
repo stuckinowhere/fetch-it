@@ -8,6 +8,7 @@ sealed class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        CleanOldFiles();
         if (!SingleInstance.TryOwn(out var instance) || instance is null)
             return;
 
@@ -17,6 +18,21 @@ sealed class Program
             BuildAvaloniaApp()
                 .AfterSetup(_ => App.SingleInstance = instance)
                 .StartWithClassicDesktopLifetime(args);
+        }
+    }
+
+    private static void CleanOldFiles()
+    {
+        try
+        {
+            var dir = AppContext.BaseDirectory;
+            foreach (var file in Directory.EnumerateFiles(dir, "*.old", SearchOption.AllDirectories))
+            {
+                try { File.Delete(file); } catch { }
+            }
+        }
+        catch
+        {
         }
     }
 

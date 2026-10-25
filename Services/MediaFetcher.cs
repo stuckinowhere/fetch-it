@@ -8,6 +8,7 @@ public sealed class MediaFetcher
     private readonly GalleryDlService _gallery = new();
     private readonly GofileService _gofile = new();
     private readonly OkRuService _okru = new();
+    private readonly KemonoService _kemono = new();
 
     public async Task<MediaProbe> ProbeAsync(
         string url,
@@ -23,6 +24,9 @@ public sealed class MediaFetcher
             progress?.Report(new FetchProgress { Status = "Reading public profile…" });
         else
             progress?.Report(new FetchProgress { Status = "Reading link…" });
+
+        if (MediaRouter.IsKemono(uri))
+            return await _kemono.ProbeAsync(url, progress, cancellationToken).ConfigureAwait(false);
 
         if (MediaRouter.IsGofile(uri))
             return await _gofile.ProbeAsync(url, progress, cancellationToken).ConfigureAwait(false);
@@ -59,7 +63,7 @@ public sealed class MediaFetcher
         }
     }
 
-    public Task DownloadAsync(
+    public async Task<string?> DownloadAsync(
         MediaProbe probe,
         string url,
         string folder,
@@ -68,14 +72,24 @@ public sealed class MediaFetcher
         CancellationToken cancellationToken)
     {
         var publicUrl = MediaRouter.CanonicalPublicUrl(url);
-        if (MediaRouter.TryParseHttpUrl(publicUrl, out var uri) && MediaRouter.IsGofile(uri))
-            return DownloadGofileAsync(probe, url, folder, progress, duplicate, cancellationToken);
+        if (MediaRouter.TryParseHttpUrl(publicUrl, out var uri) && MediaRouter.IsKemono(uri))
+            return await _kemono.DownloadAsync(folder, probe, duplicate, progress, cancellationToken).ConfigureAwait(false);
+        if (MediaRouter.TryParseHttpUrl(publicUrl, out uri) && MediaRouter.IsGofile(uri))
+        {
+            await DownloadGofileAsync(probe, url, folder, progress, duplicate, cancellationToken).ConfigureAwait(false);
+            return null;
+        }
         if (MediaRouter.TryParseHttpUrl(publicUrl, out uri) && MediaRouter.IsOkRu(uri)
             && probe.Items.Any(i => !string.IsNullOrEmpty(i.DownloadUrl)))
-            return _okru.DownloadAsync(folder, probe, duplicate, progress, cancellationToken);
-        return probe.Engine == EngineKind.GalleryDl
-            ? _gallery.DownloadAsync(publicUrl, folder, probe, duplicate, progress, cancellationToken)
-            : _yt.DownloadAsync(publicUrl, folder, probe.Title, probe.FileCount, duplicate, progress, cancellationToken);
+        {
+            await _okru.DownloadAsync(folder, probe, duplicate, progress, cancellationToken).ConfigureAwait(false);
+            return null;
+        }
+        if (probe.Engine == EngineKind.GalleryDl)
+            await _gallery.DownloadAsync(publicUrl, folder, probe, duplicate, progress, cancellationToken).ConfigureAwait(false);
+        else
+            await _yt.DownloadAsync(publicUrl, folder, probe.Title, probe.FileCount, duplicate, progress, cancellationToken).ConfigureAwait(false);
+        return null;
     }
 
     private async Task DownloadGofileAsync(

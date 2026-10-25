@@ -113,6 +113,9 @@ public static class MediaRouter
         return host == "gofile.io" || host.EndsWith(".gofile.io", StringComparison.Ordinal);
     }
 
+    public static bool IsKemono(Uri uri)
+        => KemonoService.SiteRoot(NormalizedHost(uri)) is not null;
+
     public static bool IsOkRu(Uri uri)
     {
         var host = NormalizedHost(uri);

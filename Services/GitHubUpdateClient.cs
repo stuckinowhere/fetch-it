@@ -19,7 +19,8 @@ public sealed record UpdateCheckResult(
     string? Tag,
     string? DownloadUrl,
     string? ReleaseUrl,
-    string? Error);
+    string? Error,
+    string? ZipUrl = null);
 
 public static class AppVersion
 {
@@ -155,7 +156,8 @@ public sealed class GitHubUpdateClient : IDisposable
             tag,
             download,
             IsAllowedHttpsUrl(releaseUrl) ? releaseUrl : null,
-            null);
+            null,
+            zipUrl);
     }
 
     internal static bool IsAllowedHttpsUrl(string? url)

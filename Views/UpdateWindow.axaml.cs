@@ -33,14 +33,16 @@ public partial class UpdateWindow : Window
 
     private void ApplyResult()
     {
+        var canInstall = UpdateInstaller.IsSupportedDownload(_result.DownloadUrl)
+            || UpdateInstaller.IsZipDownload(_result.ZipUrl);
         switch (_result.Status)
         {
             case UpdateCheckStatus.Available:
                 Eyebrow.Text = "UPDATE AVAILABLE";
-                Body.Text = UpdateInstaller.IsSetupDownload(_result.DownloadUrl)
+                Body.Text = canInstall
                     ? $"fetch it {_result.Tag} is ready. Install now? The app will close, then open again."
                     : $"fetch it {_result.Tag} is ready. Open the release page to get the setup.";
-                PrimaryLabel.Text = UpdateInstaller.IsSetupDownload(_result.DownloadUrl) ? "Install" : "Open";
+                PrimaryLabel.Text = canInstall ? "Install" : "Open";
                 LaterButton.IsVisible = true;
                 break;
             case UpdateCheckStatus.Failed:
@@ -76,7 +78,9 @@ public partial class UpdateWindow : Window
             return;
         }
 
-        if (!UpdateInstaller.IsSetupDownload(url))
+        var canInstall = UpdateInstaller.IsSupportedDownload(url)
+            || UpdateInstaller.IsZipDownload(_result.ZipUrl);
+        if (!canInstall)
         {
             GitHubUpdateClient.TryOpenUrl(url);
             Close();
@@ -89,7 +93,7 @@ public partial class UpdateWindow : Window
         DownloadProgress.IsVisible = true;
         DownloadProgress.IsIndeterminate = true;
         PrimaryLabel.Text = "Installing…";
-        Body.Text = "Downloading the setup…";
+        Body.Text = "Downloading update…";
 
         try
         {
@@ -99,7 +103,7 @@ public partial class UpdateWindow : Window
                 DownloadProgress.IsIndeterminate = false;
                 DownloadProgress.Value = value;
             });
-            await installer.InstallAsync(url, progress, CancellationToken.None);
+            await installer.InstallAsync(_result, progress, CancellationToken.None);
         }
         catch (Exception ex)
         {
