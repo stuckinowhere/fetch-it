@@ -41,6 +41,36 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public void LoadMore_appends_next_chunk_and_updates_labels()
+    {
+        var vm = new MainViewModel();
+        var items = Enumerable.Range(1, 120)
+            .Select(i => new MediaItem { Title = $"Item {i}" })
+            .ToList();
+        var probe = new MediaProbe
+        {
+            Title = "Batch Test",
+            ImageCount = 120,
+            Items = items
+        };
+
+        vm.ApplyProbe(probe);
+        Assert.Equal(50, vm.PreviewCards.Count);
+        Assert.True(vm.HasMore);
+        Assert.Equal("+70 more", vm.MoreLabel);
+
+        vm.LoadMoreCommand.Execute(null);
+        Assert.Equal(100, vm.PreviewCards.Count);
+        Assert.True(vm.HasMore);
+        Assert.Equal("+20 more", vm.MoreLabel);
+
+        vm.LoadMoreCommand.Execute(null);
+        Assert.Equal(120, vm.PreviewCards.Count);
+        Assert.False(vm.HasMore);
+        Assert.Equal("", vm.MoreLabel);
+    }
+
+    [Fact]
     public void Short_hides_json_parser_noise()
     {
         Assert.Equal(

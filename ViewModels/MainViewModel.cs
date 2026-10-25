@@ -280,9 +280,9 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            await _fetcher.DownloadAsync(probe, Url.Trim(), FolderPath, UiProgress(), duplicate, token);
+            var note = await _fetcher.DownloadAsync(probe, Url.Trim(), FolderPath, UiProgress(), duplicate, token);
             HideWork();
-            await OkAsync($"Saved to {FolderLabel}.");
+            await OkAsync(note ?? $"Saved to {FolderLabel}.");
         }
         catch (OperationCanceledException)
         {
@@ -393,7 +393,7 @@ public partial class MainViewModel : ObservableObject
         ProgressText = "";
     }
 
-    private void ApplyProbe(MediaProbe probe)
+    internal void ApplyProbe(MediaProbe probe)
     {
         Probe = probe;
         Title = probe.Title;
@@ -402,6 +402,20 @@ public partial class MainViewModel : ObservableObject
         HasPreview = PreviewCards.Count > 0;
         HasMore = probe.ExtraCount > 0;
         MoreLabel = HasMore ? $"+{probe.ExtraCount} more" : "";
+        NotifyPreviewLayout();
+    }
+
+    [RelayCommand]
+    private void LoadMore()
+    {
+        if (Probe is null)
+            return;
+        var next = Probe.Items.Skip(PreviewCards.Count).Take(50);
+        foreach (var item in next)
+            PreviewCards.Add(new PreviewCard(item));
+        HasMore = PreviewCards.Count < Probe.Items.Count;
+        var remaining = Probe.Items.Count - PreviewCards.Count;
+        MoreLabel = HasMore ? $"+{remaining} more" : "";
         NotifyPreviewLayout();
     }
 
@@ -484,8 +498,16 @@ public partial class MainViewModel : ObservableObject
         await Ui.ShowAlertAsync(isError ? "Error" : "Saved", message, isError);
     }
 
-    internal static int ProbeSeconds(string url) =>
-        MediaRouter.TryParseHttpUrl(url, out var uri) && MediaRouter.IsGofile(uri) ? 8 : 35;
+    internal static int ProbeSeconds(string url)
+    {
+        if (!MediaRouter.TryParseHttpUrl(url, out var uri))
+            return 35;
+        if (MediaRouter.IsGofile(uri))
+            return 8;
+        if (MediaRouter.IsKemono(uri))
+            return 60;
+        return 35;
+    }
 
     internal static string ProbeTimeoutMessage(string url) =>
         MediaRouter.TryParseHttpUrl(url, out var uri) && MediaRouter.IsGofile(uri)

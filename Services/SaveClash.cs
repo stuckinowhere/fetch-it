@@ -26,7 +26,9 @@ public static class SaveClash
         var index = 1;
         foreach (var item in probe.Items)
         {
-            names.Add($"{title}_{index}.{Extension(item)}");
+            names.Add(string.IsNullOrWhiteSpace(item.SaveName)
+                ? $"{title}_{index}.{Extension(item)}"
+                : item.SaveName);
             index++;
         }
 
@@ -65,16 +67,18 @@ public static class SaveClash
         var path = Path.Combine(dest, fileName);
         if (!File.Exists(path))
             return path;
+        // fileName may carry sub folders (e.g. "creator/post/01_a.jpg"); keep them.
+        var folder = Path.GetDirectoryName(path) ?? dest;
         var stem = Path.GetFileNameWithoutExtension(fileName);
         var ext = Path.GetExtension(fileName);
         for (var n = 2; n < 1000; n++)
         {
-            path = Path.Combine(dest, $"{stem}_{n}{ext}");
+            path = Path.Combine(folder, $"{stem}_{n}{ext}");
             if (!File.Exists(path))
                 return path;
         }
 
-        return Path.Combine(dest, $"{stem}_{Guid.NewGuid():N}{ext}");
+        return Path.Combine(folder, $"{stem}_{Guid.NewGuid():N}{ext}");
     }
 
     public static string Extension(MediaItem item)
