@@ -1,14 +1,14 @@
 {
   "ytDlp": {
-    "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp.exe",
-    "sha256": "66674953fe251b89f4d08c5f0e35e0728679bd67ab3d7d05c0562af101dd3e7a"
+    "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.21/yt-dlp.exe",
+    "sha256": "33121d192d706e62f684a06f80918e3f3a8ba52ac3a65213b6951c39c7d9f555"
   },
   "ffmpegZip": {
-    "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-09-14-51/ffmpeg-N-126482-g903325e279-win64-gpl.zip",
-    "sha256": "6c60a0c17a02eab0ead59c4597e58268fa024b45ff08cd27b6d6be8e50fd2588"
+    "url": "https://github.com/GyanD/codexffmpeg/releases/download/9.0.2/ffmpeg-9.0.2-essentials_build.zip",
+    "sha256": "60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba"
   },
   "galleryDlWheel": {
-    "url": "https://files.pythonhosted.org/packages/d6/6b/ac77fe9f7c050ca04de17174f5fc384ae104b009424b147089f0a8037272/gallery_dl-1.32.11-py3-none-any.whl",
-    "sha256": "67fcb941083defebcf0d075e6c0c0aab84a5d8ef23e927f34bf9b9860754958b"
+    "url": "https://files.pythonhosted.org/packages/f5/81/03b8f628bd5c91a62c9c8152358c3b381933dc3fdf6c5aea100e8582da80/gallery_dl-1.32.18-py3-none-any.whl",
+    "sha256": "f9081654ee4a0d6f2778376882ab7cecbf3e7ba15ed65b20416388b8789be535"
   }
 }
