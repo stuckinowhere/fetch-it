@@ -1,0 +1,9 @@
+<Project>
+  <!-- The WebView2 SDK adds desktop wrappers even though this Avalonia app uses Core only. -->
+  <Target Name="RemoveUnusedWebView2Wrappers" BeforeTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <Reference Remove="@(Reference)"
+                 Condition="('%(Reference.Filename)' == 'Microsoft.Web.WebView2.Wpf' And '$(UseWPF)' != 'true') Or ('%(Reference.Filename)' == 'Microsoft.Web.WebView2.WinForms' And '$(UseWindowsForms)' != 'true')" />
+    </ItemGroup>
+  </Target>
+</Project>

@@ -24,7 +24,7 @@ public sealed class GalleryDlService
         {
             "--dump-json",
             "--no-download",
-            "--range", "1-50",
+            "--range", $"1-{ProbeFileLimit}",
             "-o", "extractor.instagram.sleep-request=0"
         };
         AddHostOptions(args, url);
@@ -55,7 +55,7 @@ public sealed class GalleryDlService
             throw new InvalidOperationException("Windows blocked that folder. Pick another save folder.");
 
         var jobs = PlanDirectFiles(dest, probe, duplicate);
-        if (jobs.Count == probe.Items.Count && jobs.Count > 0)
+        if (CanDownloadDirect(probe, jobs))
         {
             await DownloadDirectAsync(jobs, progress, cancellationToken).ConfigureAwait(false);
             return;
@@ -65,6 +65,17 @@ public sealed class GalleryDlService
     }
 
     internal const int DirectParallel = 4;
+
+    // Probe uses gallery-dl --range 1-N so Fetch stays fast. Hitting this
+    // count means the album may be larger; Download must use the tool.
+    internal const int ProbeFileLimit = 50;
+
+    internal static bool CanDownloadDirect(
+        MediaProbe probe,
+        IReadOnlyList<(string Url, string Path)> jobs)
+        => jobs.Count > 0
+           && jobs.Count == probe.Items.Count
+           && probe.Items.Count < ProbeFileLimit;
 
     internal static IReadOnlyList<(string Url, string Path)> PlanDirectFiles(
         string dest,
@@ -196,8 +207,6 @@ public sealed class GalleryDlService
 
         var code = await ProcessRunner.RunAsync(tools.GalleryDl, args, line =>
         {
-            if (line.Contains("error", StringComparison.OrdinalIgnoreCase))
-                return;
             if (LooksLikeSavedFile(line))
             {
                 done++;
@@ -211,14 +220,29 @@ public sealed class GalleryDlService
             }
         }, cancellationToken, environment: tools.GalleryEnvironment).ConfigureAwait(false);
 
-        if (code != 0 && done == 0)
+        EnsureToolSucceeded(code, done, fileCount);
+    }
+
+    internal static void EnsureToolSucceeded(int code, int done, int fileCount)
+    {
+        if (code == 0)
+            return;
+        if (done <= 0)
             throw new InvalidOperationException("Could not save those files.");
+        var total = Math.Max(fileCount, done);
+        throw new InvalidOperationException($"Saved {done} of {total} files.");
     }
 
     internal static bool LooksLikeSavedFile(string line)
     {
         var trimmed = line.Trim();
         if (trimmed.Length == 0)
+            return false;
+        if (trimmed.Contains("error", StringComparison.OrdinalIgnoreCase)
+            || trimmed.Contains("warning", StringComparison.OrdinalIgnoreCase))
+            return false;
+        // [instagram][info] Visiting https://... is a log line, not a save.
+        if (trimmed.StartsWith('[') && trimmed.Contains("][", StringComparison.Ordinal))
             return false;
         return trimmed.Contains('\\') || trimmed.Contains('/') || trimmed.StartsWith('#');
     }
