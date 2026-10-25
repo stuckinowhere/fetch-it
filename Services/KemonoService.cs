@@ -15,7 +15,7 @@ public sealed class KemonoService
 {
     internal const int PageSize = 50;
     internal const int Parallel = 6;
-    internal const string BlockedMessage = "kemono's file server is blocked on this network. Try a VPN.";
+    internal const string BlockedMessage = "Kemono's media servers are not responding. Try again later.";
 
     // Same set the site thumbnailer accepts (gallery-dl util.EXTS_IMAGE).
     private static readonly HashSet<string> ImageExt = new(StringComparer.OrdinalIgnoreCase)
@@ -245,7 +245,7 @@ public sealed class KemonoService
                 : "Could not save those files.");
 
         using var handler = HttpFetch.CreateHandler(maxConnectionsPerServer: Parallel);
-        handler.ConnectTimeout = TimeSpan.FromSeconds(10);
+        handler.ConnectTimeout = TimeSpan.FromSeconds(3);
         handler.AllowAutoRedirect = true;
         using var http = HttpFetch.CreateClient(handler, Timeout.InfiniteTimeSpan);
 
@@ -266,7 +266,7 @@ public sealed class KemonoService
                 {
                     try
                     {
-                        await HttpFetch.SaveStreamAsync(http, job.Url, job.Path, token, retries: 2).ConfigureAwait(false);
+                        await HttpFetch.SaveStreamAsync(http, job.Url, job.Path, token, retries: 1).ConfigureAwait(false);
                         saved = true;
                     }
                     catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -316,7 +316,7 @@ public sealed class KemonoService
             throw new InvalidOperationException(originalsDown == 1 ? BlockedMessage : "Could not save those files.");
         if (!failed.IsEmpty)
             throw new InvalidOperationException($"Saved {done} of {total} files.");
-        return previews > 0 ? PreviewNote(done, previews) : null;
+        return null;
     }
 
     internal static string PreviewNote(int done, int previews)
