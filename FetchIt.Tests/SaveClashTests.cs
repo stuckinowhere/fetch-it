@@ -105,6 +105,28 @@ public class SaveClashTests
     }
 
     [Fact]
+    public void Direct_download_is_skipped_when_probe_hit_the_file_cap()
+    {
+        var dest = Path.Combine(Path.GetTempPath(), "fetchit-cap-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dest);
+        try
+        {
+            var full = GalleryItems(GalleryDlService.ProbeFileLimit);
+            var jobs = GalleryDlService.PlanDirectFiles(dest, full, DuplicateChoice.Overwrite);
+            Assert.Equal(GalleryDlService.ProbeFileLimit, jobs.Count);
+            Assert.False(GalleryDlService.CanDownloadDirect(full, jobs));
+
+            var under = GalleryItems(GalleryDlService.ProbeFileLimit - 1);
+            var underJobs = GalleryDlService.PlanDirectFiles(dest, under, DuplicateChoice.Overwrite);
+            Assert.True(GalleryDlService.CanDownloadDirect(under, underJobs));
+        }
+        finally
+        {
+            Directory.Delete(dest, recursive: true);
+        }
+    }
+
+    [Fact]
     public void PlanDirectFiles_keeps_item_index_when_a_url_is_missing()
     {
         var dest = Path.Combine(Path.GetTempPath(), "fetchit-gap-" + Guid.NewGuid().ToString("N"));
@@ -126,6 +148,7 @@ public class SaveClashTests
             Assert.Equal(2, jobs.Count);
             Assert.EndsWith("mix_1.jpg", jobs[0].Path, StringComparison.OrdinalIgnoreCase);
             Assert.EndsWith("mix_3.jpg", jobs[1].Path, StringComparison.OrdinalIgnoreCase);
+            Assert.False(GalleryDlService.CanDownloadDirect(probe, jobs));
         }
         finally
         {
@@ -160,6 +183,21 @@ public class SaveClashTests
         var many = YtDlpService.OutputTemplate(dest, "Best of", 3, DuplicateChoice.Overwrite);
         Assert.Equal(Path.Combine(dest, "Best of_%(autonumber)03d.%(ext)s"), many);
     }
+
+    private static MediaProbe GalleryItems(int count)
+        => new()
+        {
+            Title = "album",
+            Engine = EngineKind.GalleryDl,
+            ImageCount = count,
+            Items = Enumerable.Range(1, count)
+                .Select(i => new MediaItem
+                {
+                    Kind = MediaKind.Image,
+                    DownloadUrl = $"https://example.com/{i}.jpg"
+                })
+                .ToList()
+        };
 
     [Fact]
     public void Duplicate_prompt_names_the_folder_and_files()
