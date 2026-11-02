@@ -229,4 +229,31 @@ public class ParserTests
         Assert.Equal("Downloads", ViewModels.MainViewModel.FolderDisplay(downloads));
     }
 
+
+    [Fact]
+    public void YtDlp_parses_flat_playlist_entries()
+    {
+        // --flat-playlist entries carry no formats/ext/vcodec: still videos.
+        const string json = """
+            {
+              "_type": "playlist",
+              "title": "Flat",
+              "extractor_key": "YoutubeTab",
+              "entries": [
+                { "_type": "url", "ie_key": "Youtube", "id": "a1", "url": "https://www.youtube.com/watch?v=a1", "title": "First", "duration": 61,
+                  "thumbnails": [ { "url": "https://i.ytimg.com/vi/a1/hqdefault.jpg", "height": 360, "width": 480 } ] },
+                { "_type": "url", "ie_key": "Youtube", "id": "b2", "url": "https://www.youtube.com/watch?v=b2", "title": "Second", "duration": null }
+              ]
+            }
+            """;
+        var probe = YtDlpParser.Parse(json);
+        Assert.Equal("Flat", probe.Title);
+        Assert.Equal(2, probe.VideoCount);
+        Assert.Equal(0, probe.ImageCount);
+        Assert.Equal("First", probe.Items[0].Title);
+        Assert.Equal(TimeSpan.FromSeconds(61), probe.Items[0].Duration);
+        Assert.Equal("https://i.ytimg.com/vi/a1/hqdefault.jpg", probe.Items[0].ThumbnailUrl);
+        Assert.Equal("Second", probe.Items[1].Title);
+        Assert.Null(probe.Items[1].Duration);
+    }
 }

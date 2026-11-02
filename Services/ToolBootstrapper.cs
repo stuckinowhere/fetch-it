@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -9,14 +10,14 @@ public sealed class ToolPaths
 {
     public required string YtDlp { get; init; }
     public required string FfmpegDir { get; init; }
+
+    /// <summary>Standalone gallery-dl.exe, or null when it is missing or fails its hash.</summary>
     public string? GalleryDl { get; init; }
-    public IReadOnlyList<string> GalleryPrefix { get; init; } = [];
-    public IReadOnlyDictionary<string, string>? GalleryEnvironment { get; init; }
 }
 
 public static class ToolBootstrapper
 {
-    internal static readonly ToolPinTable Pins = ToolPinTable.Load();
+    internal static ToolPinTable Pins => ToolPins.Current;
 
     public static string LocalToolsDirectory => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -33,6 +34,10 @@ public static class ToolBootstrapper
 
     internal const long MinFfmpegBytes = 8L * 1024 * 1024;
 
+    private static readonly SemaphoreSlim EnsureGate = new(1, 1);
+    private static DateTime _galleryFailedAt = DateTime.MinValue;
+    private static readonly TimeSpan GalleryRetryAfter = TimeSpan.FromMinutes(10);
+
     internal static bool IsUsableFfmpeg(string path)
     {
         try
@@ -45,38 +50,42 @@ public static class ToolBootstrapper
         }
     }
 
-    public static ToolPaths? TryFind()
+    public static ToolPaths? TryFind() => TryFind(Pins);
+
+    internal static ToolPaths? TryFind(ToolPinTable pins)
     {
         foreach (var root in CandidateRoots())
         {
             var yt = Path.Combine(root, "yt-dlp.exe");
-            if (!File.Exists(yt) || !Sha256Equals(yt, Pins.YtDlp.Sha256))
+            if (!File.Exists(yt) || !Sha256Equals(yt, pins.YtDlp.Sha256))
                 continue;
 
             var ffmpeg = Path.Combine(root, "ffmpeg.exe");
             if (!IsUsableFfmpeg(ffmpeg))
                 continue;
 
-            var galleryLib = Path.Combine(root, "gallery-dl-lib");
-            string? python = null;
-            IReadOnlyList<string> prefix = [];
-            IReadOnlyDictionary<string, string>? env = null;
-            if (Directory.Exists(Path.Combine(galleryLib, "gallery_dl")))
-                python = FindPython();
-            if (python is not null)
-            {
-                prefix = ["-m", "gallery_dl"];
-                env = new Dictionary<string, string> { ["PYTHONPATH"] = galleryLib };
-            }
+            var gallery = Path.Combine(root, "gallery-dl.exe");
+            if (!File.Exists(gallery) || !Sha256Equals(gallery, pins.GalleryDlExe.Sha256))
+                gallery = FindGalleryElsewhere(pins);
 
             return new ToolPaths
             {
                 YtDlp = yt,
                 FfmpegDir = root,
-                GalleryDl = python,
-                GalleryPrefix = prefix,
-                GalleryEnvironment = env
+                GalleryDl = gallery
             };
+        }
+
+        return null;
+    }
+
+    private static string? FindGalleryElsewhere(ToolPinTable pins)
+    {
+        foreach (var root in CandidateRoots())
+        {
+            var gallery = Path.Combine(root, "gallery-dl.exe");
+            if (File.Exists(gallery) && Sha256Equals(gallery, pins.GalleryDlExe.Sha256))
+                return gallery;
         }
 
         return null;
@@ -85,9 +94,45 @@ public static class ToolBootstrapper
     public static async Task<ToolPaths> EnsureAsync(IProgress<string>? progress, CancellationToken cancellationToken)
     {
         var existing = TryFind();
-        if (existing is not null && existing.GalleryDl is not null)
+        if (existing is not null && (existing.GalleryDl is not null || !ShouldRetryGallery()))
             return existing;
 
+        await EnsureGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            existing = TryFind();
+            if (existing is not null && (existing.GalleryDl is not null || !ShouldRetryGallery()))
+                return existing;
+
+            try
+            {
+                return await EnsureCoreAsync(Pins, existing, progress, cancellationToken).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException ex)
+                when (ex.Message.StartsWith("Hash mismatch", StringComparison.Ordinal)
+                      && !ReferenceEquals(Pins, ToolPins.Embedded))
+            {
+                // A remote pin that does not match its download must not brick the app:
+                // fall back to the pins compiled into this build.
+                AppLog.Warn($"Remote tool pins rejected: {ex.Message}. Using embedded pins.");
+                ToolPins.ResetToEmbedded();
+                return await EnsureCoreAsync(Pins, TryFind(), progress, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            EnsureGate.Release();
+        }
+    }
+
+    private static bool ShouldRetryGallery() => DateTime.UtcNow - _galleryFailedAt >= GalleryRetryAfter;
+
+    private static async Task<ToolPaths> EnsureCoreAsync(
+        ToolPinTable pins,
+        ToolPaths? existing,
+        IProgress<string>? progress,
+        CancellationToken cancellationToken)
+    {
         var dest = LocalToolsDirectory;
         Directory.CreateDirectory(dest);
         using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(8) };
@@ -95,57 +140,67 @@ public static class ToolBootstrapper
         progress?.Report("tools");
         if (existing is null)
         {
-            await DownloadVerifiedAsync(http, Pins.YtDlp.Url, Path.Combine(dest, "yt-dlp.exe"), Pins.YtDlp.Sha256, cancellationToken)
+            await DownloadVerifiedAsync(http, pins.YtDlp.Url, Path.Combine(dest, "yt-dlp.exe"), pins.YtDlp.Sha256, cancellationToken)
                 .ConfigureAwait(false);
 
-            var zipPath = Path.Combine(dest, "ffmpeg.zip");
-            await DownloadVerifiedAsync(http, Pins.FfmpegZip.Url, zipPath, Pins.FfmpegZip.Sha256, cancellationToken)
-                .ConfigureAwait(false);
-            ExtractFfmpeg(zipPath, dest);
-            TryDelete(zipPath);
+            var ffmpeg = Path.Combine(dest, "ffmpeg.exe");
+            if (!IsUsableFfmpeg(ffmpeg))
+            {
+                var zipPath = Path.Combine(dest, "ffmpeg.zip");
+                await DownloadVerifiedAsync(http, pins.FfmpegZip.Url, zipPath, pins.FfmpegZip.Sha256, cancellationToken)
+                    .ConfigureAwait(false);
+                ExtractFfmpeg(zipPath, dest);
+                TryDelete(zipPath);
+            }
         }
 
-        var wheel = Path.Combine(dest, "gallery-dl.whl");
         try
         {
-            await DownloadVerifiedAsync(http, Pins.GalleryDlWheel.Url, wheel, Pins.GalleryDlWheel.Sha256, cancellationToken)
+            await DownloadVerifiedAsync(http, pins.GalleryDlExe.Url, Path.Combine(dest, "gallery-dl.exe"), pins.GalleryDlExe.Sha256, cancellationToken)
                 .ConfigureAwait(false);
-            ExtractWheel(wheel, Path.Combine(dest, "gallery-dl-lib"));
+            _galleryFailedAt = DateTime.MinValue;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException)
         {
+            // yt-dlp still works without gallery-dl; try again later instead of on every fetch.
+            _galleryFailedAt = DateTime.UtcNow;
+            AppLog.Warn($"gallery-dl download failed: {ex.Message}");
         }
 
-        return TryFind() ?? existing ?? throw new InvalidOperationException("Could not install yt-dlp or ffmpeg.");
+        return TryFind(pins) ?? existing ?? throw new InvalidOperationException("Could not install yt-dlp or ffmpeg.");
     }
+
+    private static readonly ConcurrentDictionary<string, (long Length, DateTime Written, string Hash)> HashCache = new();
 
     internal static bool Sha256Equals(string path, string expectedHex)
     {
         try
         {
+            var info = new FileInfo(path);
+            if (!info.Exists)
+                return false;
+
+            var key = info.FullName;
+            if (HashCache.TryGetValue(key, out var cached)
+                && cached.Length == info.Length
+                && cached.Written == info.LastWriteTimeUtc)
+            {
+                return cached.Hash.Equals(expectedHex, StringComparison.OrdinalIgnoreCase);
+            }
+
             using var stream = File.OpenRead(path);
             var hash = Convert.ToHexString(SHA256.HashData(stream));
+            HashCache[key] = (info.Length, info.LastWriteTimeUtc, hash);
             return hash.Equals(expectedHex, StringComparison.OrdinalIgnoreCase);
         }
         catch
         {
             return false;
         }
-    }
-
-    internal static string? FindPython()
-    {
-        var paths = (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator);
-        foreach (var dir in paths)
-        {
-            if (string.IsNullOrWhiteSpace(dir))
-                continue;
-            var candidate = Path.Combine(dir.Trim(), "python.exe");
-            if (File.Exists(candidate) && new FileInfo(candidate).Length > 4096)
-                return candidate;
-        }
-
-        return null;
     }
 
     internal static void ExtractFfmpeg(string zipPath, string dest)
@@ -162,24 +217,6 @@ public static class ToolBootstrapper
         }
     }
 
-    internal static void ExtractWheel(string wheelPath, string dest)
-    {
-        Directory.CreateDirectory(dest);
-        var root = Path.GetFullPath(dest) + Path.DirectorySeparatorChar;
-        using var zip = ZipFile.OpenRead(wheelPath);
-        foreach (var entry in zip.Entries)
-        {
-            if (string.IsNullOrEmpty(entry.Name))
-                continue;
-            var relative = entry.FullName.Replace('/', Path.DirectorySeparatorChar);
-            var target = Path.GetFullPath(Path.Combine(dest, relative));
-            if (!target.StartsWith(root, StringComparison.OrdinalIgnoreCase))
-                continue;
-            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-            entry.ExtractToFile(target, overwrite: true);
-        }
-    }
-
     private static async Task DownloadVerifiedAsync(
         HttpClient http,
         string url,
@@ -190,6 +227,10 @@ public static class ToolBootstrapper
         if (File.Exists(dest) && Sha256Equals(dest, sha256))
             return;
 
+        if (!ToolPins.IsAllowedToolUrl(url))
+            throw new InvalidOperationException($"Tool URL not allowed: {url}");
+
+        AppLog.Info($"download {url}");
         var tmp = dest + ".part";
         TryDelete(tmp);
         await using (var stream = await http.GetStreamAsync(url, cancellationToken).ConfigureAwait(false))
@@ -237,23 +278,151 @@ internal sealed class ToolPinTable
     [JsonPropertyName("ffmpegZip")]
     public required ToolPin FfmpegZip { get; init; }
 
-    [JsonPropertyName("galleryDlWheel")]
-    public required ToolPin GalleryDlWheel { get; init; }
+    [JsonPropertyName("galleryDlExe")]
+    public required ToolPin GalleryDlExe { get; init; }
+
+    internal IEnumerable<ToolPin> All => [YtDlp, FfmpegZip, GalleryDlExe];
 
     internal static ToolPinTable Load()
     {
         using var stream = typeof(ToolBootstrapper).Assembly.GetManifestResourceStream(ResourceName)
             ?? throw new InvalidOperationException($"Missing embedded {ResourceName}.");
-        var table = JsonSerializer.Deserialize<ToolPinTable>(stream)
-            ?? throw new InvalidOperationException("Invalid scripts/tool-pins.json.");
-        if (table.YtDlp is null || table.FfmpegZip is null || table.GalleryDlWheel is null)
-            throw new InvalidOperationException("scripts/tool-pins.json is missing a pin.");
-        foreach (var pin in new[] { table.YtDlp, table.FfmpegZip, table.GalleryDlWheel })
+        return Parse(stream);
+    }
+
+    internal static ToolPinTable Parse(Stream json)
+    {
+        using var reader = new StreamReader(json);
+        return Parse(reader.ReadToEnd());
+    }
+
+    internal static ToolPinTable Parse(string json)
+    {
+        ToolPinTable? table;
+        try
         {
-            if (string.IsNullOrWhiteSpace(pin.Url) || string.IsNullOrWhiteSpace(pin.Sha256))
-                throw new InvalidOperationException("scripts/tool-pins.json is missing a url or sha256.");
+            table = JsonSerializer.Deserialize<ToolPinTable>(json);
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException("Invalid tool-pins.json: " + ex.Message, ex);
         }
 
+        if (table is null)
+            throw new InvalidOperationException("Invalid tool-pins.json.");
+        table.Validate();
         return table;
+    }
+
+    private void Validate()
+    {
+        if (YtDlp is null || FfmpegZip is null || GalleryDlExe is null)
+            throw new InvalidOperationException("tool-pins.json is missing a pin.");
+        foreach (var pin in All)
+        {
+            if (string.IsNullOrWhiteSpace(pin.Url) || string.IsNullOrWhiteSpace(pin.Sha256))
+                throw new InvalidOperationException("tool-pins.json is missing a url or sha256.");
+            if (pin.Sha256.Length != 64 || !pin.Sha256.All(Uri.IsHexDigit))
+                throw new InvalidOperationException("tool-pins.json has a malformed sha256.");
+            if (!ToolPins.IsAllowedToolUrl(pin.Url))
+                throw new InvalidOperationException($"tool-pins.json URL not allowed: {pin.Url}");
+        }
+    }
+
+    internal bool SameAs(ToolPinTable other)
+        => All.Zip(other.All).All(pair =>
+            pair.First.Url == pair.Second.Url
+            && pair.First.Sha256.Equals(pair.Second.Sha256, StringComparison.OrdinalIgnoreCase));
+}
+
+/// <summary>
+/// Tool pins come from the embedded table, optionally overridden by a newer
+/// copy of scripts/tool-pins.json fetched from this repository. That lets a
+/// yt-dlp bump reach users without shipping a new app build.
+/// </summary>
+internal static class ToolPins
+{
+    public const string RemoteUrl = "https://raw.githubusercontent.com/stuckinowhere/fetch-it/main/scripts/tool-pins.json";
+
+    internal static readonly ToolPinTable Embedded = ToolPinTable.Load();
+    private static volatile ToolPinTable _current = LoadCachedOrEmbedded();
+
+    public static ToolPinTable Current => _current;
+
+    public static string CachePath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "WasdFetchIt",
+        "tool-pins.json");
+
+    internal static bool IsAllowedToolUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            return false;
+        if (uri.Scheme != Uri.UriSchemeHttps)
+            return false;
+        var host = uri.Host.TrimEnd('.').ToLowerInvariant();
+        return host is "github.com"
+            or "objects.githubusercontent.com"
+            or "release-assets.githubusercontent.com"
+            or "codeberg.org"
+            or "files.pythonhosted.org";
+    }
+
+    private static ToolPinTable LoadCachedOrEmbedded()
+    {
+        try
+        {
+            if (File.Exists(CachePath))
+                return ToolPinTable.Parse(File.ReadAllText(CachePath));
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn($"Ignoring cached tool pins: {ex.Message}");
+        }
+
+        return Embedded;
+    }
+
+    internal static void ResetToEmbedded()
+    {
+        _current = Embedded;
+        try
+        {
+            if (File.Exists(CachePath))
+                File.Delete(CachePath);
+        }
+        catch
+        {
+        }
+    }
+
+    /// <summary>Fetch the latest pins; never throws. Returns true when pins changed.</summary>
+    public static async Task<bool> RefreshAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
+            http.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "WasdFetchIt-Pins");
+            var json = await http.GetStringAsync(RemoteUrl, cancellationToken).ConfigureAwait(false);
+            return Apply(json);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn($"Tool pin refresh skipped: {ex.Message}");
+            return false;
+        }
+    }
+
+    internal static bool Apply(string json)
+    {
+        var table = ToolPinTable.Parse(json);
+        if (table.SameAs(_current))
+            return false;
+
+        Directory.CreateDirectory(Path.GetDirectoryName(CachePath)!);
+        File.WriteAllText(CachePath, json);
+        _current = table;
+        AppLog.Info("Tool pins updated from remote.");
+        return true;
     }
 }

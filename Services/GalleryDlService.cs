@@ -20,7 +20,7 @@ public sealed class GalleryDlService
 
         var social = MediaRouter.TryParseHttpUrl(url, out var uri) && MediaRouter.IsSocialPostHost(uri);
         using var cookies = SessionCookies.BindForTool(social);
-        var args = new List<string>(tools.GalleryPrefix)
+        var args = new List<string>
         {
             "--dump-json",
             "--no-download",
@@ -32,10 +32,13 @@ public sealed class GalleryDlService
         args.Add(url);
 
         var text = await ProcessRunner.RunTextAsync(
-            tools.GalleryDl, args, cancellationToken, tools.GalleryEnvironment, TimeSpan.FromSeconds(15))
+            tools.GalleryDl, args, cancellationToken, timeout: TimeSpan.FromSeconds(15))
             .ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(text) || LooksLikeFailure(text))
+        {
+            AppLog.Warn($"gallery-dl probe failed for {url}:\n{text}");
             throw new InvalidOperationException(ShortError(url, text));
+        }
         var probe = GalleryDlParser.Parse(text);
         if (probe.FileCount > 0 && probe.Items.Count > 0)
             return probe;
@@ -188,7 +191,7 @@ public sealed class GalleryDlService
         var done = 0;
         var social = MediaRouter.TryParseHttpUrl(url, out var uri) && MediaRouter.IsSocialPostHost(uri);
         using var cookies = SessionCookies.BindForTool(social);
-        var args = new List<string>(tools.GalleryPrefix)
+        var args = new List<string>
         {
             "-D", dest,
             "--no-mtime",
@@ -218,7 +221,7 @@ public sealed class GalleryDlService
                     Status = $"{done} / {total}"
                 });
             }
-        }, cancellationToken, environment: tools.GalleryEnvironment).ConfigureAwait(false);
+        }, cancellationToken).ConfigureAwait(false);
 
         EnsureToolSucceeded(code, done, fileCount);
     }

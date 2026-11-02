@@ -1,8 +1,9 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:s="using:FetchIt.Services"
         x:Class="FetchIt.Views.UpdateWindow"
         Icon="/Assets/fetchit.png"
-        Title=""
+        Title="fetch it"
         Width="400"
         SizeToContent="Height"
         CanResize="False"
@@ -30,7 +31,7 @@
                     Grid.Column="1"
                     Classes="Flat"
                     Margin="0,0,8,0"
-                    Content="Later"
+                    Content="{x:Static s:L.Later}"
                     Click="OnLaterClick" />
             <Button x:Name="PrimaryButton"
                     Grid.Column="2"
@@ -39,7 +40,7 @@
                     MinWidth="120"
                     Click="OnPrimaryClick">
                 <TextBlock x:Name="PrimaryLabel"
-                           Text="Install"
+                           Text="{x:Static s:L.Install}"
                            FontFamily="{StaticResource Plex}"
                            FontSize="16"
                            FontWeight="Bold"

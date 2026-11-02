@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -57,7 +58,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _hasMore;
     [ObservableProperty] private string _moreLabel = "";
     [ObservableProperty] private string _folderPath = "";
-    [ObservableProperty] private string _folderLabel = "Downloads";
+    [ObservableProperty] private string _folderLabel = L.Downloads;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowEmptyHint))]
     [NotifyPropertyChangedFor(nameof(DownloadLabel))]
@@ -71,6 +72,16 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _progressIsIndeterminate;
     [ObservableProperty] private double _progress;
     [ObservableProperty] private string _progressText = "";
+
+    /// <summary>Inline result line under the preview: "Saved to Downloads." plus Open folder.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowOpenFolder))]
+    private bool _showStatus;
+    [ObservableProperty] private string _statusText = "";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowOpenFolder))]
+    private bool _statusIsError;
+
     [ObservableProperty] private bool _isDark;
     [ObservableProperty] private double _tileWidth = 320;
     [ObservableProperty] private double _tileImageHeight = 180;
@@ -80,15 +91,17 @@ public partial class MainViewModel : ObservableObject
     public bool IsSinglePreview => HasPreview && PreviewCards.Count == 1;
     public bool HasManyPreviews => PreviewCards.Count > 1;
     public PreviewCard? Hero => PreviewCards.Count == 1 ? PreviewCards[0] : null;
-    public string FetchLabel => IsProbing ? "Stop" : "Fetch";
-    public string DownloadLabel => IsBusy ? "Stop" : "Download";
+    public string FetchLabel => IsProbing ? L.Stop : L.Fetch;
+    public string DownloadLabel => IsBusy ? L.Stop : L.Download;
     public bool CanDownload => HasPreview && Probe is not null && !IsProbing;
+    public bool ShowOpenFolder => ShowStatus && !StatusIsError;
 
     partial void OnUrlChanged(string value)
     {
         _probeCts?.Cancel();
         ClearResult();
         HideWork();
+        HideStatus();
     }
 
     [RelayCommand]
@@ -96,6 +109,26 @@ public partial class MainViewModel : ObservableObject
     {
         if (Application.Current is { } app)
             IsDark = ThemeStore.Toggle(app);
+    }
+
+    [RelayCommand]
+    private void OpenFolder()
+    {
+        try
+        {
+            if (!Directory.Exists(FolderPath))
+                return;
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "explorer.exe",
+                Arguments = $"\"{FolderPath}\"",
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn($"Open folder failed: {ex.Message}");
+        }
     }
 
     public Task CheckUpdatesOnLaunchAsync() => CheckForUpdatesCoreAsync(notifyWhenCurrent: false);
@@ -118,8 +151,9 @@ public partial class MainViewModel : ObservableObject
                 return;
             await Ui.ShowUpdateAsync(result);
         }
-        catch
+        catch (Exception ex)
         {
+            AppLog.Warn($"Update check failed: {ex.Message}");
             if (!notifyWhenCurrent || Ui is null)
                 return;
             await Ui.ShowUpdateAsync(new UpdateCheckResult(
@@ -175,14 +209,19 @@ public partial class MainViewModel : ObservableObject
         }
 
         var version = Interlocked.Increment(ref _probeVersion);
-        _probeCts?.Cancel();
-        _probeCts = new CancellationTokenSource();
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(_probeCts.Token);
+        var previous = _probeCts;
+        previous?.Cancel();
+        var cts = new CancellationTokenSource();
+        _probeCts = cts;
+        previous?.Dispose();
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token);
         timeoutCts.CancelAfter(TimeSpan.FromSeconds(ProbeSeconds(Url)));
         var token = timeoutCts.Token;
 
         IsProbing = true;
+        HideStatus();
         ShowWork("Reading link…", indeterminate: true);
+        AppLog.Info($"fetch {Url.Trim()}");
         try
         {
             var probe = await ProbeWithSessionAsync(Url.Trim(), token);
@@ -196,13 +235,14 @@ public partial class MainViewModel : ObservableObject
             if (version != _probeVersion)
                 return;
             HideWork();
-            if (!_probeCts.IsCancellationRequested)
+            if (!cts.IsCancellationRequested)
                 await FailAsync(ProbeTimeoutMessage(Url));
         }
         catch (Exception ex)
         {
             if (version != _probeVersion)
                 return;
+            AppLog.Error($"fetch failed for {Url.Trim()}", ex);
             ClearResult();
             HideWork();
             await FailAsync(Short(ex.Message));
@@ -266,23 +306,28 @@ public partial class MainViewModel : ObservableObject
                 return;
             if (duplicate == DuplicateChoice.Skip)
             {
-                await OkAsync($"Already in {FolderLabel}.");
+                ShowOk(L.Format("Already in {0}.", FolderLabel));
                 return;
             }
         }
 
         IsBusy = true;
+        HideStatus();
         ShowWork("Saving…", indeterminate: true);
 
-        _fetchCts?.Cancel();
-        _fetchCts = new CancellationTokenSource();
-        var token = _fetchCts.Token;
+        var previous = _fetchCts;
+        previous?.Cancel();
+        var cts = new CancellationTokenSource();
+        _fetchCts = cts;
+        previous?.Dispose();
+        var token = cts.Token;
+        AppLog.Info($"download {Url.Trim()} -> {FolderPath}");
 
         try
         {
             var note = await _fetcher.DownloadAsync(probe, Url.Trim(), FolderPath, UiProgress(), duplicate, token);
             HideWork();
-            await OkAsync(note ?? $"Saved to {FolderLabel}.");
+            ShowOk(note is null ? L.Format("Saved to {0}.", FolderLabel) : L.Translate(note));
         }
         catch (OperationCanceledException)
         {
@@ -290,6 +335,7 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            AppLog.Error($"download failed for {Url.Trim()}", ex);
             HideWork();
             await FailAsync(Short(ex.Message));
         }
@@ -324,6 +370,15 @@ public partial class MainViewModel : ObservableObject
         {
             _askingPaste = false;
         }
+    }
+
+    /// <summary>A link dropped onto the window: fill the box and start reading it.</summary>
+    public Task AcceptDroppedLinkAsync(string? text)
+    {
+        if (!MediaRouter.TryParseHttpUrl(text, out _) || IsBusy)
+            return Task.CompletedTask;
+        Url = text!.Trim();
+        return FetchCommand.ExecuteAsync(null);
     }
 
     internal static string ShortLink(string link)
@@ -373,7 +428,7 @@ public partial class MainViewModel : ObservableObject
             Progress = update.Percent;
         }
         if (!string.IsNullOrWhiteSpace(update.Status))
-            ProgressText = update.Status;
+            ProgressText = L.Translate(update.Status);
     });
 
     private void ShowWork(string status, bool indeterminate)
@@ -382,7 +437,7 @@ public partial class MainViewModel : ObservableObject
         ProgressIsIndeterminate = indeterminate;
         if (indeterminate)
             Progress = 0;
-        ProgressText = status;
+        ProgressText = L.Translate(status);
     }
 
     private void HideWork()
@@ -393,6 +448,20 @@ public partial class MainViewModel : ObservableObject
         ProgressText = "";
     }
 
+    private void ShowOk(string message)
+    {
+        StatusText = message;
+        StatusIsError = false;
+        ShowStatus = true;
+    }
+
+    private void HideStatus()
+    {
+        ShowStatus = false;
+        StatusText = "";
+        StatusIsError = false;
+    }
+
     internal void ApplyProbe(MediaProbe probe)
     {
         Probe = probe;
@@ -401,7 +470,7 @@ public partial class MainViewModel : ObservableObject
         ReplaceCards(probe.PreviewItems);
         HasPreview = PreviewCards.Count > 0;
         HasMore = probe.ExtraCount > 0;
-        MoreLabel = HasMore ? $"+{probe.ExtraCount} more" : "";
+        MoreLabel = HasMore ? L.More(probe.ExtraCount) : "";
         NotifyPreviewLayout();
     }
 
@@ -415,7 +484,7 @@ public partial class MainViewModel : ObservableObject
             PreviewCards.Add(new PreviewCard(item));
         HasMore = PreviewCards.Count < Probe.Items.Count;
         var remaining = Probe.Items.Count - PreviewCards.Count;
-        MoreLabel = HasMore ? $"+{remaining} more" : "";
+        MoreLabel = HasMore ? L.More(remaining) : "";
         NotifyPreviewLayout();
     }
 
@@ -481,21 +550,17 @@ public partial class MainViewModel : ObservableObject
         var downloads = FolderStore.WindowsDownloads();
         if (string.Equals(path.TrimEnd(Path.DirectorySeparatorChar), downloads.TrimEnd(Path.DirectorySeparatorChar),
                 StringComparison.OrdinalIgnoreCase))
-            return "Downloads";
+            return L.Downloads;
         return Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar)) is { Length: > 0 } name
             ? name
             : path;
     }
 
-    private Task FailAsync(string message) => ShowStatusAsync(message, isError: true);
-
-    private Task OkAsync(string message) => ShowStatusAsync(message, isError: false);
-
-    private async Task ShowStatusAsync(string message, bool isError)
+    private async Task FailAsync(string message)
     {
         if (Ui is null)
             return;
-        await Ui.ShowAlertAsync(isError ? "Error" : "Saved", message, isError);
+        await Ui.ShowAlertAsync(L.Error, L.Translate(message), isError: true);
     }
 
     internal static int ProbeSeconds(string url)

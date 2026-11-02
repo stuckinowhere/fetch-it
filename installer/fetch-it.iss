@@ -1,5 +1,5 @@
 ; fetch it — Windows installer
-; Bundles the self-contained .NET 8 exe and media tools (no SDK install).
+; Bundles the self-contained .NET 10 exe and media tools (no SDK install).
 ; Per-user, no admin. Installs to %LocalAppData%\WasdFetchIt.
 
 #ifndef MyAppVersion
@@ -46,15 +46,20 @@ UsedUserAreasWarning=no
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional options:"; Flags: unchecked
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+
+[InstallDelete]
+; Builds before 1.2.0 shipped gallery-dl as a Python wheel.
+Type: filesandordirs; Name: "{app}\gallery-dl-lib"
 
 [Files]
 Source: "{#PublishDir}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PublishDir}\FetchIt.ico"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#PublishDir}\yt-dlp.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
-Source: "{#PublishDir}\gallery-dl-lib\*"; DestDir: "{app}\gallery-dl-lib"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+Source: "{#PublishDir}\gallery-dl.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#PublishDir}\ffmpeg.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#PublishDir}\ffprobe.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
@@ -65,14 +70,18 @@ Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFile
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\FetchIt.ico"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall
 
 [UninstallDelete]
 Type: files; Name: "{app}\FetchIt.ico"
 Type: files; Name: "{app}\instagram.cookies.txt"
 Type: files; Name: "{app}\instagram.cookies.bin"
+Type: files; Name: "{app}\tool-pins.json"
+Type: files; Name: "{app}\gofile-guest.txt"
 Type: filesandordirs; Name: "{app}\ig-webview"
 Type: filesandordirs; Name: "{app}\tools"
+Type: filesandordirs; Name: "{app}\logs"
+Type: filesandordirs; Name: "{app}\gallery-dl-lib"
 Type: filesandordirs; Name: "{userappdata}\WasdFetchIt"
 Type: dirifempty; Name: "{app}"
 

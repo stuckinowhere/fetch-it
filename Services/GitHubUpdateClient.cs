@@ -20,7 +20,8 @@ public sealed record UpdateCheckResult(
     string? DownloadUrl,
     string? ReleaseUrl,
     string? Error,
-    string? ZipUrl = null);
+    string? ZipUrl = null,
+    string? SumsUrl = null);
 
 public static class AppVersion
 {
@@ -130,6 +131,7 @@ public sealed class GitHubUpdateClient : IDisposable
         var releaseUrl = root.TryGetProperty("html_url", out var htmlEl) ? htmlEl.GetString() : null;
         string? setupUrl = null;
         string? zipUrl = null;
+        string? sumsUrl = null;
         if (root.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
         {
             foreach (var asset in assets.EnumerateArray())
@@ -144,6 +146,8 @@ public sealed class GitHubUpdateClient : IDisposable
                     setupUrl ??= url;
                 else if (name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
                     zipUrl ??= url;
+                else if (name.Equals(UpdateInstaller.SumsFileName, StringComparison.OrdinalIgnoreCase))
+                    sumsUrl ??= url;
             }
         }
 
@@ -157,7 +161,8 @@ public sealed class GitHubUpdateClient : IDisposable
             download,
             IsAllowedHttpsUrl(releaseUrl) ? releaseUrl : null,
             null,
-            zipUrl);
+            zipUrl,
+            sumsUrl);
     }
 
     internal static bool IsAllowedHttpsUrl(string? url)

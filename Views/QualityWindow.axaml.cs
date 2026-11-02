@@ -20,7 +20,7 @@ public partial class QualityWindow : Window
         InitializeComponent();
         AppIcons.ApplyToWindow(this);
         NativeWindowIcon.Bind(this);
-        Body.Text = $"Pick a quality for “{title}”.";
+        Body.Text = Services.L.Format("Pick a quality for “{0}”.", title);
 
         var ink = ResolveBrush("InkBrush") ?? Brushes.White;
 

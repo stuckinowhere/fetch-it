@@ -20,6 +20,10 @@ public partial class MainWindow : Window, IUiHost
         Activated += OnActivated;
         Opened += OnOpened;
         SizeChanged += OnWindowSizeChanged;
+        AddHandler(DragDrop.DragOverEvent, OnDragOver);
+        AddHandler(DragDrop.DropEvent, OnDrop);
+        // Tunnel so the shortcut works while the URL box has focus.
+        AddHandler(KeyDownEvent, OnPreviewKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         App.SingleInstance?.Watch(() => Dispatcher.UIThread.Post(ShowExisting));
     }
 
@@ -34,7 +38,7 @@ public partial class MainWindow : Window, IUiHost
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            Title = "Save to",
+            Title = L.SaveFolderTip,
             AllowMultiple = false
         });
         return folders.Count == 0 ? null : folders[0].TryGetLocalPath();
@@ -89,9 +93,9 @@ public partial class MainWindow : Window, IUiHost
     public async Task<bool> AskPasteLinkAsync(string link)
     {
         var window = new ConfirmWindow(
-            "Clipboard",
-            $"Paste this link?\n\n{MainViewModel.ShortLink(link)}",
-            "Paste");
+            L.Clipboard,
+            $"{L.PasteThisLink}\n\n{MainViewModel.ShortLink(link)}",
+            L.Paste);
         return await window.ShowDialog<bool>(this);
     }
 
@@ -109,6 +113,36 @@ public partial class MainWindow : Window, IUiHost
         await Task.Delay(1200);
         if (IsVisible)
             await vm.CheckUpdatesOnLaunchAsync();
+    }
+
+    private static string? DroppedLink(DragEventArgs e)
+    {
+        try
+        {
+            var text = e.DataTransfer.TryGetText();
+            if (MediaRouter.TryParseHttpUrl(text, out _))
+                return text!.Trim();
+        }
+        catch
+        {
+        }
+
+        return null;
+    }
+
+    private void OnDragOver(object? sender, DragEventArgs e)
+    {
+        e.DragEffects = DroppedLink(e) is null ? DragDropEffects.None : DragDropEffects.Copy;
+        e.Handled = true;
+    }
+
+    private async void OnDrop(object? sender, DragEventArgs e)
+    {
+        var link = DroppedLink(e);
+        if (link is null || DataContext is not MainViewModel vm)
+            return;
+        e.Handled = true;
+        await vm.AcceptDroppedLinkAsync(link);
     }
 
     private void ShowExisting()
@@ -140,6 +174,16 @@ public partial class MainWindow : Window, IUiHost
     {
         if (DataContext is MainViewModel vm)
             vm.FitPreview(width, height);
+    }
+
+    private async void OnPreviewKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || !e.KeyModifiers.HasFlag(KeyModifiers.Control))
+            return;
+        if (DataContext is not MainViewModel vm || !vm.CanDownload)
+            return;
+        e.Handled = true;
+        await vm.DownloadCommand.ExecuteAsync(null);
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)

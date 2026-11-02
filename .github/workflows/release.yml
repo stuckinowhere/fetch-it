@@ -16,7 +16,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
 
       - name: Test
         run: dotnet test FetchIt.sln -c Release --nologo
@@ -49,6 +49,15 @@ jobs:
           & $iscc "/DMyAppVersion=$env:VERSION" "/DPublishDir=$publish" .\installer\fetch-it.iss
           Copy-Item ".\artifacts\fetch-it-v$($env:VERSION)-win-x64-setup.exe" . -Force
 
+      - name: Write SHA256SUMS.txt
+        shell: pwsh
+        run: |
+          $lines = Get-ChildItem fetch-it-*.zip, fetch-it-*-win-x64-setup.exe | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLowerInvariant(), $_.Name
+          }
+          [IO.File]::WriteAllLines((Join-Path $pwd "SHA256SUMS.txt"), $lines)
+          Get-Content SHA256SUMS.txt
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
@@ -56,3 +65,4 @@ jobs:
           files: |
             fetch-it-*.zip
             fetch-it-*-win-x64-setup.exe
+            SHA256SUMS.txt
