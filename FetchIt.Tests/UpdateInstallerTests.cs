@@ -128,6 +128,90 @@ public class UpdateInstallerTests
         }
     }
 
+    [Fact]
+    public void ParseSums_reads_sha256sum_format()
+    {
+        var sums = UpdateInstaller.ParseSums(
+            "# comment\n" +
+            "ABCDEF0123456789abcdef0123456789abcdef0123456789abcdef0123456789  fetch-it-v1.2.0-win-x64.zip\n" +
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef *fetch-it-v1.2.0-win-x64-setup.exe\r\n" +
+            "not a hash line\n");
+        Assert.Equal(2, sums.Count);
+        Assert.Equal(
+            "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+            UpdateInstaller.ExpectedSha256(sums, "https://github.com/x/y/releases/download/v1.2.0/fetch-it-v1.2.0-win-x64.zip"));
+        Assert.Null(UpdateInstaller.ExpectedSha256(sums, "https://github.com/x/y/releases/download/v1.2.0/other.zip"));
+    }
+
+    [Fact]
+    public async Task DownloadSetup_rejects_hash_mismatch()
+    {
+        var payload = "MZ"u8.ToArray().Concat(new byte[64]).ToArray();
+        var url = "https://github.com/stuckinowhere/fetch-it/releases/download/v9.0.0/fetch-it-v9.0.0-win-x64-setup.exe";
+        using var installer = new UpdateInstaller(new BytesHandler(url, payload), minBytes: 2, maxBytes: 1024);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            installer.DownloadSetupAsync(url, null, CancellationToken.None, new string('0', 64)));
+        Assert.Equal(UpdateInstaller.VerificationFailedMessage, ex.Message);
+        Assert.False(File.Exists(UpdateInstaller.StagingPath() + ".part"));
+    }
+
+    [Fact]
+    public async Task DownloadSetup_accepts_matching_hash()
+    {
+        var payload = "MZ"u8.ToArray().Concat(new byte[64]).ToArray();
+        var hex = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(payload));
+        var url = "https://github.com/stuckinowhere/fetch-it/releases/download/v9.0.0/fetch-it-v9.0.0-win-x64-setup.exe";
+        using var installer = new UpdateInstaller(new BytesHandler(url, payload), minBytes: 2, maxBytes: 1024);
+        var dest = await installer.DownloadSetupAsync(url, null, CancellationToken.None, hex);
+        try
+        {
+            Assert.True(File.Exists(dest));
+        }
+        finally
+        {
+            File.Delete(dest);
+        }
+    }
+
+    [Fact]
+    public void PlanOrder_prefers_setup_when_installed_with_setup()
+    {
+        var setup = "https://github.com/stuckinowhere/fetch-it/releases/download/v2.0.0/fetch-it-v2.0.0-win-x64-setup.exe";
+        var zip = "https://github.com/stuckinowhere/fetch-it/releases/download/v2.0.0/fetch-it-v2.0.0-win-x64.zip";
+        var result = new UpdateCheckResult(UpdateCheckStatus.Available, new Version(1, 0, 0, 0), new Version(2, 0, 0, 0), "v2.0.0", setup, null, null, zip);
+
+        Assert.Equal([setup, zip], UpdateInstaller.PlanOrder(result, installedWithSetup: true));
+        Assert.Equal([zip, setup], UpdateInstaller.PlanOrder(result, installedWithSetup: false));
+    }
+
+    [Fact]
+    public async Task InstallAsync_requires_sums_asset()
+    {
+        var setup = "https://github.com/stuckinowhere/fetch-it/releases/download/v2.0.0/fetch-it-v2.0.0-win-x64-setup.exe";
+        var result = new UpdateCheckResult(UpdateCheckStatus.Available, new Version(1, 0, 0, 0), new Version(2, 0, 0, 0), "v2.0.0", setup, null, null);
+        using var installer = new UpdateInstaller(new BytesHandler(setup, "MZ"u8.ToArray()), minBytes: 1, maxBytes: 1024);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            installer.InstallAsync(result, null, CancellationToken.None));
+        Assert.Equal(UpdateInstaller.NoSumsMessage, ex.Message);
+    }
+
+    [Fact]
+    public void IsInstalledWithSetup_looks_for_inno_uninstaller()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "fetchit-inno-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            Assert.False(UpdateInstaller.IsInstalledWithSetup(dir));
+            File.WriteAllBytes(Path.Combine(dir, "unins000.dat"), [1]);
+            Assert.True(UpdateInstaller.IsInstalledWithSetup(dir));
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
     private sealed class BytesHandler : HttpMessageHandler
     {
         private readonly string _url;

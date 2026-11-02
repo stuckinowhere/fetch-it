@@ -31,8 +31,10 @@ internal static class ProcessRunner
         foreach (var argument in arguments)
             start.ArgumentList.Add(argument);
 
-        using var process = new Process { StartInfo = start, EnableRaisingEvents = true };
-        var tcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        AppLog.Info($"run {Path.GetFileName(fileName)} {string.Join(' ', start.ArgumentList)}");
+
+        using var process = new Process { StartInfo = start };
+        var stderr = new StringBuilder();
 
         process.OutputDataReceived += (_, e) =>
         {
@@ -41,10 +43,12 @@ internal static class ProcessRunner
         };
         process.ErrorDataReceived += (_, e) =>
         {
-            if (e.Data is not null)
-                onLine?.Invoke(e.Data);
+            if (e.Data is null)
+                return;
+            if (stderr.Length < 16 * 1024)
+                stderr.AppendLine(e.Data);
+            onLine?.Invoke(e.Data);
         };
-        process.Exited += (_, _) => tcs.TrySetResult(process.ExitCode);
 
         if (!process.Start())
             throw new InvalidOperationException($"Could not start {fileName}.");
@@ -64,7 +68,13 @@ internal static class ProcessRunner
             }
         });
 
-        return await tcs.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        // WaitForExitAsync also waits for the redirected streams to reach EOF,
+        // so the last stdout lines are delivered before we read ExitCode.
+        await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+        var code = process.ExitCode;
+        if (code != 0)
+            AppLog.Warn($"{Path.GetFileName(fileName)} exited {code}. stderr:\n{stderr}");
+        return code;
     }
 
     public static async Task<string> RunTextAsync(
@@ -95,6 +105,7 @@ internal static class ProcessRunner
         }
         catch (OperationCanceledException) when (timeout is not null && !cancellationToken.IsCancellationRequested)
         {
+            AppLog.Warn($"{Path.GetFileName(fileName)} timed out after {timeout.Value.TotalSeconds:0}s.");
             throw new InvalidOperationException("That site took too long. Try again.");
         }
     }

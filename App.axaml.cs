@@ -20,6 +20,9 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             desktop.MainWindow = new MainWindow { DataContext = new MainViewModel() };
 
+        // Pick up a newer yt-dlp / gallery-dl pin without waiting for an app release.
+        _ = ToolPins.RefreshAsync();
+
         base.OnFrameworkInitializationCompleted();
     }
 }

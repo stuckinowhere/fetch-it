@@ -10,7 +10,7 @@ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
 $pinsPath = Join-Path $PSScriptRoot "tool-pins.json"
 $pins = Get-Content -LiteralPath $pinsPath -Raw | ConvertFrom-Json
-foreach ($pin in @($pins.ytDlp, $pins.ffmpegZip, $pins.galleryDlWheel)) {
+foreach ($pin in @($pins.ytDlp, $pins.ffmpegZip, $pins.galleryDlExe)) {
     if (-not $pin -or -not $pin.url -or -not $pin.sha256) {
         throw "scripts/tool-pins.json is missing a url or sha256."
     }
@@ -54,18 +54,17 @@ if (-not (Test-Path $ffmpeg)) {
     Remove-Item $zip -Force -ErrorAction SilentlyContinue
 }
 
-$wheel = Join-Path $OutDir "gallery-dl.whl"
-$lib = Join-Path $OutDir "gallery-dl-lib"
+# Standalone gallery-dl.exe: no Python needed on the user's PC.
 try {
-    Get-Verified $pins.galleryDlWheel.url $wheel $pins.galleryDlWheel.sha256
-    New-Item -ItemType Directory -Force -Path $lib | Out-Null
-    $wheelZip = Join-Path $OutDir "gallery-dl.whl.zip"
-    Copy-Item $wheel $wheelZip -Force
-    Expand-Archive -Path $wheelZip -DestinationPath $lib -Force
-    Remove-Item $wheelZip -Force -ErrorAction SilentlyContinue
+    Get-Verified $pins.galleryDlExe.url (Join-Path $OutDir "gallery-dl.exe") $pins.galleryDlExe.sha256
 }
 catch {
-    Write-Host "gallery-dl wheel skipped: $_"
+    Write-Host "gallery-dl.exe skipped: $_"
 }
+
+# Leftover from builds that shipped the Python wheel.
+$oldLib = Join-Path $OutDir "gallery-dl-lib"
+if (Test-Path $oldLib) { Remove-Item $oldLib -Recurse -Force -ErrorAction SilentlyContinue }
+Remove-Item (Join-Path $OutDir "gallery-dl.whl") -Force -ErrorAction SilentlyContinue
 
 Write-Host "Tools in $OutDir"

@@ -25,10 +25,10 @@ public sealed class MediaItem
         get
         {
             if (Kind == MediaKind.Image)
-                return "IMAGE";
+                return Services.L.T("IMAGE");
             return Duration is { } duration && duration > TimeSpan.Zero
                 ? MediaProbe.FormatDuration(duration)
-                : "VIDEO";
+                : Services.L.T("VIDEO");
         }
     }
 }
@@ -66,9 +66,9 @@ public sealed class MediaProbe
             if (Duration is { } duration && duration > TimeSpan.Zero)
                 parts.Add(FormatDuration(duration));
             if (VideoCount > 0)
-                parts.Add(VideoCount == 1 ? "1 video" : $"{VideoCount} videos");
+                parts.Add(VideoCount == 1 ? Services.L.T("1 video") : Services.L.Format("{0} videos", VideoCount));
             if (ImageCount > 0)
-                parts.Add(ImageCount == 1 ? "1 image" : $"{ImageCount} images");
+                parts.Add(ImageCount == 1 ? Services.L.T("1 image") : Services.L.Format("{0} images", ImageCount));
             return string.Join("  ·  ", parts);
         }
     }

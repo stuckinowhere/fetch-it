@@ -5,9 +5,9 @@ $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-    Write-Host "Install the .NET 8 SDK, then run this again:"
-    Write-Host "https://dotnet.microsoft.com/download/dotnet/8.0"
-    Start-Process "https://dotnet.microsoft.com/download/dotnet/8.0"
+    Write-Host "Install the .NET 10 SDK, then run this again:"
+    Write-Host "https://dotnet.microsoft.com/download/dotnet/10.0"
+    Start-Process "https://dotnet.microsoft.com/download/dotnet/10.0"
     exit 1
 }
 

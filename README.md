@@ -18,7 +18,7 @@ A portable zip (`fetch-it-*-win-x64.zip`) is also on each release if you would r
 
 ## Build from source
 
-1. Install the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) (x64).
+1. Install the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (x64).
 2. Get this repo onto the machine (clone, or download the ZIP and unzip it).
 3. In that folder, either:
 
@@ -37,18 +37,21 @@ That builds `publish\win-x64\FetchIt.exe`, downloads yt-dlp / gallery-dl / ffmpe
 .\run-windows.ps1
 ```
 
-The first fetch downloads pinned yt-dlp and ffmpeg into `%LocalAppData%\WasdFetchIt\tools` if they are not already beside the exe. gallery-dl also needs `python.exe` on `PATH`. Without Python, Instagram, X, and Threads skip that engine.
+The first fetch downloads pinned yt-dlp, ffmpeg, and the standalone gallery-dl.exe into `%LocalAppData%\WasdFetchIt\tools` if they are not already beside the exe. No Python needed. On launch the app also reads [`scripts/tool-pins.json`](scripts/tool-pins.json) from `main`, so a yt-dlp bump reaches users without a new release.
+
+A log of what the tools said is kept in `%LocalAppData%\WasdFetchIt\logs\fetchit.log` (1 MB, three files) for when a link fails.
 
 If PowerShell blocks scripts: `Set-ExecutionPolicy -Scope Process Bypass`.
 
 ## What it does
 
-- Paste a link, or it takes one from the clipboard when you open the window.
+- Paste a link, drop one onto the window, or let it take one from the clipboard when you open the window.
+- English or Spanish, following the Windows display language.
 - **Fetch** — read the link and show a preview. Becomes **Stop** while reading.
-- **Download** — save files after Fetch finishes. Shows speed and how much is left. Becomes **Stop** while saving.
+- **Download** (or Ctrl+Enter) — save files after Fetch finishes. Shows speed and how much is left. Becomes **Stop** while saving. When done, **Open folder** takes you to the files.
 - Folder icon — where files go. Defaults to your Windows Downloads folder (including if you moved it). Remembers the last folder you pick.
 - Theme icon — light or dark.
-- Update icon — check GitHub Releases. On launch the app does this quietly and only prompts when a newer setup exists. **Install** downloads that setup, runs it, and reopens the app.
+- Update icon — check GitHub Releases. On launch the app does this quietly and only prompts when a newer setup exists. **Install** downloads the setup (or the zip for a portable copy), checks it against the release `SHA256SUMS.txt`, runs it, and reopens the app.
 - Instagram may ask you to sign in in a small window. Chrome can stay open. No password is stored.
 
 A post with several files is saved in the folder you picked, next to each other.
@@ -72,11 +75,11 @@ After this branch is on `main`:
 ```powershell
 git checkout main
 git pull
-git tag v1.1.17
-git push origin v1.1.17
+git tag v1.2.0
+git push origin v1.2.0
 ```
 
-That runs `.github/workflows/release.yml`, which tests, publishes a self-contained win-x64 build, fetches tools, and creates a GitHub Release with `fetch-it-v1.1.17-win-x64-setup.exe` and `fetch-it-v1.1.17-win-x64.zip`.
+That runs `.github/workflows/release.yml`, which tests, publishes a self-contained win-x64 build, fetches tools, and creates a GitHub Release with `fetch-it-v1.2.0-win-x64-setup.exe`, `fetch-it-v1.2.0-win-x64.zip`, and `SHA256SUMS.txt` (the in-app updater refuses a release without it).
 
 To build the installer locally (needs [Inno Setup 6](https://jrsoftware.org/isinfo.php)):
 

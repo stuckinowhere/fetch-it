@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using FetchIt.Models;
+using FetchIt.Services;
 
 namespace FetchIt.Views;
 
@@ -25,12 +26,12 @@ public partial class DuplicateWindow : Window
         var extra = count - listed.Count;
         var files = string.Join("\n", listed);
         if (extra > 0)
-            files += extra == 1 ? "\n+1 more" : $"\n+{extra} more";
+            files += "\n" + L.More(extra);
 
         var lead = count == 1
-            ? $"This file is already in {folderLabel}:"
-            : $"These {count} files are already in {folderLabel}:";
-        return $"{lead}\n\n{files}\n\nSkip, keep both copies, or replace them?";
+            ? L.Format("This file is already in {0}:", folderLabel)
+            : L.Format("These {0} files are already in {1}:", count, folderLabel);
+        return $"{lead}\n\n{files}\n\n{L.T("Skip, keep both copies, or replace them?")}";
     }
 
     private void OnSkipClick(object? sender, RoutedEventArgs e) => Close(DuplicateChoice.Skip);

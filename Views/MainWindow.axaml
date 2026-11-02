@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:FetchIt.ViewModels"
+        xmlns:s="using:FetchIt.Services"
         xmlns:controls="clr-namespace:Material.Styles.Controls;assembly=Material.Styles"
         xmlns:icons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -10,7 +11,7 @@
         x:Class="FetchIt.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Icon="/Assets/fetchit.png"
-        Title=""
+        Title="fetch it"
         Width="1100"
         Height="700"
         MinWidth="800"
@@ -19,6 +20,7 @@
         WindowState="Normal"
         WindowStartupLocation="CenterScreen"
         ShowInTaskbar="True"
+        DragDrop.AllowDrop="True"
         Background="{DynamicResource PaperBrush}"
         Foreground="{DynamicResource InkBrush}"
         KeyDown="OnKeyDown">
@@ -38,7 +40,7 @@
                             Height="48"
                             Padding="0"
                             Command="{Binding PickFolderCommand}"
-                            ToolTip.Tip="Save folder">
+                            ToolTip.Tip="{x:Static s:L.SaveFolderTip}">
                         <icons:MaterialIcon Kind="Folder"
                                             Width="26"
                                             Height="26" />
@@ -48,7 +50,7 @@
                             Height="48"
                             Padding="0"
                             Command="{Binding CheckForUpdatesCommand}"
-                            ToolTip.Tip="Updates">
+                            ToolTip.Tip="{x:Static s:L.UpdatesTip}">
                         <icons:MaterialIcon Kind="Update"
                                             Width="26"
                                             Height="26" />
@@ -58,7 +60,7 @@
                             Height="48"
                             Padding="0"
                             Command="{Binding ToggleThemeCommand}"
-                            ToolTip.Tip="Theme">
+                            ToolTip.Tip="{x:Static s:L.ThemeTip}">
                         <Panel>
                             <icons:MaterialIcon Kind="WeatherNight"
                                                 Width="26"
@@ -114,7 +116,7 @@
             <Grid Grid.Row="1"
                   Margin="0,16,0,0"
                   SizeChanged="OnPreviewSizeChanged">
-                <TextBlock Text="Paste a link, then Fetch."
+                <TextBlock Text="{x:Static s:L.EmptyHint}"
                            IsVisible="{Binding ShowEmptyHint}"
                            FontFamily="{StaticResource Plex}"
                            FontSize="16"
@@ -226,7 +228,8 @@
                         Margin="16,0,0,0"
                         VerticalAlignment="Center"
                         IsEnabled="{Binding CanDownload}"
-                        Command="{Binding DownloadCommand}">
+                        Command="{Binding DownloadCommand}"
+                        ToolTip.Tip="Ctrl+Enter">
                     <TextBlock Text="{Binding DownloadLabel}"
                                FontFamily="{StaticResource Plex}"
                                FontSize="16"
@@ -240,24 +243,61 @@
 
         <StackPanel Grid.Row="2"
                     Margin="24,0,24,8"
-                    Spacing="8"
-                    IsVisible="{Binding ShowProgress}">
-            <ProgressBar Height="6"
-                         Minimum="0"
-                         Maximum="100"
-                         IsIndeterminate="{Binding ProgressIsIndeterminate}"
-                         Value="{Binding Progress}"
-                         Foreground="{DynamicResource InkBrush}" />
-            <TextBlock Text="{Binding ProgressText}"
-                       FontFamily="{StaticResource Plex}"
-                       FontSize="13"
-                       FontWeight="Medium"
-                       Foreground="{DynamicResource InkBrush}" />
+                    Spacing="8">
+            <StackPanel Spacing="8" IsVisible="{Binding ShowProgress}">
+                <ProgressBar Height="6"
+                             Minimum="0"
+                             Maximum="100"
+                             IsIndeterminate="{Binding ProgressIsIndeterminate}"
+                             Value="{Binding Progress}"
+                             Foreground="{DynamicResource InkBrush}" />
+                <TextBlock Text="{Binding ProgressText}"
+                           FontFamily="{StaticResource Plex}"
+                           FontSize="13"
+                           FontWeight="Medium"
+                           Foreground="{DynamicResource InkBrush}" />
+            </StackPanel>
+
+            <!-- Inline result: no modal for a success, and a one-click way to the files. -->
+            <StackPanel Orientation="Horizontal"
+                        Spacing="16"
+                        IsVisible="{Binding ShowStatus}">
+                <TextBlock Text="{Binding StatusText}"
+                           VerticalAlignment="Center"
+                           FontFamily="{StaticResource Plex}"
+                           FontSize="14"
+                           FontWeight="Bold"
+                           Foreground="{DynamicResource SuccessBrush}"
+                           IsVisible="{Binding StatusIsError, Converter={x:Static BoolConverters.Not}}" />
+                <TextBlock Text="{Binding StatusText}"
+                           VerticalAlignment="Center"
+                           FontFamily="{StaticResource Plex}"
+                           FontSize="14"
+                           FontWeight="Bold"
+                           Foreground="{DynamicResource DangerBrush}"
+                           IsVisible="{Binding StatusIsError}" />
+                <Button Classes="Flat"
+                        Command="{Binding OpenFolderCommand}"
+                        IsVisible="{Binding ShowOpenFolder}"
+                        AutomationProperties.Name="{x:Static s:L.OpenFolder}"
+                        Cursor="Hand"
+                        Padding="12,0"
+                        Height="36">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <icons:MaterialIcon Kind="FolderOpen" Width="20" Height="20" />
+                        <TextBlock Text="{x:Static s:L.OpenFolder}"
+                                   VerticalAlignment="Center"
+                                   FontFamily="{StaticResource Plex}"
+                                   FontSize="14"
+                                   FontWeight="Bold" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
         </StackPanel>
 
         <TextBlock Grid.Row="3"
                    Margin="24,0,24,12"
-                   Text="© 2026 stuckinowhere · MIT"
+                   Text="{x:Static s:L.Footer}"
                    FontFamily="{StaticResource Plex}"
                    FontSize="12"
                    FontWeight="Medium"

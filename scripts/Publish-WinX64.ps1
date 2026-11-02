@@ -17,12 +17,12 @@ if ([string]::IsNullOrWhiteSpace($OutDir)) {
 }
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-    Write-Host "Install the .NET 8 SDK, then run this again:"
-    Write-Host "https://dotnet.microsoft.com/download/dotnet/8.0"
+    Write-Host "Install the .NET 10 SDK, then run this again:"
+    Write-Host "https://dotnet.microsoft.com/download/dotnet/10.0"
     if ($Launch) {
-        Start-Process "https://dotnet.microsoft.com/download/dotnet/8.0"
+        Start-Process "https://dotnet.microsoft.com/download/dotnet/10.0"
     }
-    throw "The .NET 8 SDK is required."
+    throw "The .NET 10 SDK is required."
 }
 
 $publishArgs = @(

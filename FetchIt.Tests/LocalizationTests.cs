@@ -1,0 +1,63 @@
+using FetchIt.Models;
+using FetchIt.Services;
+
+namespace FetchIt.Tests;
+
+public class LocalizationTests
+{
+    private sealed class Spanish : IDisposable
+    {
+        private readonly string _was = L.Language;
+        public Spanish() => L.Language = "es";
+        public void Dispose() => L.Language = _was;
+    }
+
+    [Fact]
+    public void English_is_pass_through()
+    {
+        L.Language = "en";
+        Assert.Equal("Not a link.", L.Translate("Not a link."));
+        Assert.Equal("+3 more", L.More(3));
+        Assert.Equal("Download", L.Download);
+    }
+
+    [Fact]
+    public void Spanish_translates_fixed_and_patterned_messages()
+    {
+        using var _ = new Spanish();
+        Assert.Equal("No es un enlace.", L.Translate("Not a link."));
+        Assert.Equal("Guardados 2 de 5 archivos.", L.Translate("Saved 2 of 5 files."));
+        Assert.Equal("1.2 MB/s  ·  40 MB restantes", L.Translate("1.2 MB/s  ·  40 MB left"));
+        Assert.Equal("+3 más", L.More(3));
+        Assert.Equal("Descargar", L.Download);
+        Assert.Equal("Guardado en Descargas.", L.Format("Saved to {0}.", "Descargas"));
+    }
+
+    [Fact]
+    public void Unknown_text_is_left_alone()
+    {
+        using var _ = new Spanish();
+        Assert.Equal("12 / 40", L.Translate("12 / 40"));
+        Assert.Equal("", L.Translate(null));
+    }
+
+    [Fact]
+    public void Media_summary_follows_language()
+    {
+        var probe = new MediaProbe { Site = "youtube", VideoCount = 2, ImageCount = 1 };
+        L.Language = "en";
+        Assert.Equal("youtube  ·  2 videos  ·  1 image", probe.Summary);
+        using var _ = new Spanish();
+        Assert.Equal("youtube  ·  2 vídeos  ·  1 imagen", probe.Summary);
+        Assert.Equal("IMAGEN", new MediaItem { Kind = MediaKind.Image }.Overlay);
+    }
+
+    [Fact]
+    public void Engine_strings_stay_english_in_code()
+    {
+        using var _ = new Spanish();
+        // Services compare these by value; only the display layer translates.
+        Assert.Equal("Only public profiles.", MediaRouter.PublicOnlyMessage);
+        Assert.Equal("Solo perfiles públicos.", L.Translate(MediaRouter.PublicOnlyMessage));
+    }
+}

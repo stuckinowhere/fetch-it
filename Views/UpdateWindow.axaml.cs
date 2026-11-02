@@ -38,23 +38,23 @@ public partial class UpdateWindow : Window
         switch (_result.Status)
         {
             case UpdateCheckStatus.Available:
-                Eyebrow.Text = "UPDATE AVAILABLE";
+                Eyebrow.Text = L.T("UPDATE AVAILABLE");
                 Body.Text = canInstall
-                    ? $"fetch it {_result.Tag} is ready. Install now? The app will close, then open again."
-                    : $"fetch it {_result.Tag} is ready. Open the release page to get the setup.";
-                PrimaryLabel.Text = canInstall ? "Install" : "Open";
+                    ? L.Format("fetch it {0} is ready. Install now? The app will close, then open again.", _result.Tag ?? "")
+                    : L.Format("fetch it {0} is ready. Open the release page to get the setup.", _result.Tag ?? "");
+                PrimaryLabel.Text = canInstall ? L.Install : L.Open;
                 LaterButton.IsVisible = true;
                 break;
             case UpdateCheckStatus.Failed:
-                Eyebrow.Text = "UPDATE CHECK";
-                Body.Text = _result.Error ?? "Could not check for updates. Try again when you are online.";
-                PrimaryLabel.Text = "OK";
+                Eyebrow.Text = L.T("UPDATE CHECK");
+                Body.Text = L.Translate(_result.Error ?? "Could not check for updates. Try again when you are online.");
+                PrimaryLabel.Text = L.Ok;
                 LaterButton.IsVisible = false;
                 break;
             default:
-                Eyebrow.Text = "UP TO DATE";
-                Body.Text = $"You are on {_result.Current.ToString(3)}.";
-                PrimaryLabel.Text = "OK";
+                Eyebrow.Text = L.T("UP TO DATE");
+                Body.Text = L.Format("You are on {0}.", _result.Current.ToString(3));
+                PrimaryLabel.Text = L.Ok;
                 LaterButton.IsVisible = false;
                 break;
         }
@@ -92,8 +92,8 @@ public partial class UpdateWindow : Window
         LaterButton.IsEnabled = false;
         DownloadProgress.IsVisible = true;
         DownloadProgress.IsIndeterminate = true;
-        PrimaryLabel.Text = "Installing…";
-        Body.Text = "Downloading update…";
+        PrimaryLabel.Text = L.T("Installing…");
+        Body.Text = L.T("Downloading update…");
 
         try
         {
@@ -107,16 +107,17 @@ public partial class UpdateWindow : Window
         }
         catch (Exception ex)
         {
+            AppLog.Error("Update install failed", ex);
             _busy = false;
             _closeOnly = true;
             PrimaryButton.IsEnabled = true;
             LaterButton.IsEnabled = true;
             DownloadProgress.IsVisible = false;
-            Eyebrow.Text = "UPDATE FAILED";
+            Eyebrow.Text = L.T("UPDATE FAILED");
             if (this.TryFindResource("DangerBrush", out var brush) && brush is IBrush colored)
                 Eyebrow.Foreground = colored;
-            Body.Text = Short(ex.Message);
-            PrimaryLabel.Text = "OK";
+            Body.Text = Short(L.Translate(ex.Message));
+            PrimaryLabel.Text = L.Ok;
             LaterButton.IsVisible = false;
         }
     }

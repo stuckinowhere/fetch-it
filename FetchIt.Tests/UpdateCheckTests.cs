@@ -153,4 +153,23 @@ public class UpdateCheckTests
             });
         }
     }
+
+    [Fact]
+    public void Parse_picks_up_sha256sums_asset()
+    {
+        var json = """
+            {
+              "tag_name": "v9.0.0",
+              "html_url": "https://github.com/stuckinowhere/fetch-it/releases/tag/v9.0.0",
+              "assets": [
+                { "name": "SHA256SUMS.txt", "browser_download_url": "https://github.com/stuckinowhere/fetch-it/releases/download/v9.0.0/SHA256SUMS.txt" },
+                { "name": "fetch-it-v9.0.0-win-x64.zip", "browser_download_url": "https://github.com/stuckinowhere/fetch-it/releases/download/v9.0.0/fetch-it-v9.0.0-win-x64.zip" }
+              ]
+            }
+            """;
+        var result = GitHubUpdateClient.Parse(json, new Version(1, 0, 0, 0));
+        Assert.Equal("https://github.com/stuckinowhere/fetch-it/releases/download/v9.0.0/SHA256SUMS.txt", result.SumsUrl);
+        Assert.Equal("https://github.com/stuckinowhere/fetch-it/releases/download/v9.0.0/fetch-it-v9.0.0-win-x64.zip", result.DownloadUrl);
+        Assert.Null(GitHubUpdateClient.Parse(LatestJson, new Version(1, 0, 0, 0)).SumsUrl);
+    }
 }

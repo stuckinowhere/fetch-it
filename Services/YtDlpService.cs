@@ -18,6 +18,7 @@ public sealed class YtDlpService
         var args = new List<string>
         {
             "--dump-single-json",
+            "--flat-playlist",
             "--no-download",
             "--no-warnings",
             "--ignore-no-formats-error",
@@ -30,7 +31,10 @@ public sealed class YtDlpService
         var text = await ProcessRunner.RunTextAsync(
             tools.YtDlp, args, cancellationToken, timeout: TimeSpan.FromSeconds(15)).ConfigureAwait(false);
         if (LooksLikeFailure(text))
+        {
+            AppLog.Warn($"yt-dlp probe failed for {url}:\n{text}");
             throw new InvalidOperationException(ShortError(text));
+        }
         return YtDlpParser.Parse(text);
     }
 
