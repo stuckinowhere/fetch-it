@@ -32,45 +32,32 @@ public static class ToolBootstrapper
         yield return Path.Combine(baseDir, "tools");
     }
 
-    internal const long MinFfmpegBytes = 8L * 1024 * 1024;
-
     private static readonly SemaphoreSlim EnsureGate = new(1, 1);
     private static DateTime _galleryFailedAt = DateTime.MinValue;
     private static readonly TimeSpan GalleryRetryAfter = TimeSpan.FromMinutes(10);
 
-    internal static bool IsUsableFfmpeg(string path)
+    public static ToolPaths? TryFind() => TryFind(Pins, CandidateRoots());
+
+    /// <summary>
+    /// A root counts only when yt-dlp.exe, ffmpeg.exe and ffprobe.exe all match
+    /// their pinned SHA-256: that directory is handed to yt-dlp as
+    /// --ffmpeg-location, so every binary in it must be bound by hash.
+    /// </summary>
+    internal static ToolPaths? TryFind(ToolPinTable pins, IEnumerable<string> roots)
     {
-        try
+        var rootList = roots.ToList();
+        foreach (var root in rootList)
         {
-            return File.Exists(path) && new FileInfo(path).Length >= MinFfmpegBytes;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    public static ToolPaths? TryFind() => TryFind(Pins);
-
-    internal static ToolPaths? TryFind(ToolPinTable pins)
-    {
-        foreach (var root in CandidateRoots())
-        {
-            var yt = Path.Combine(root, "yt-dlp.exe");
-            if (!File.Exists(yt) || !Sha256Equals(yt, pins.YtDlp.Sha256))
-                continue;
-
-            var ffmpeg = Path.Combine(root, "ffmpeg.exe");
-            if (!IsUsableFfmpeg(ffmpeg))
+            if (!HasVerifiedCore(root, pins))
                 continue;
 
             var gallery = Path.Combine(root, "gallery-dl.exe");
-            if (!File.Exists(gallery) || !Sha256Equals(gallery, pins.GalleryDlExe.Sha256))
-                gallery = FindGalleryElsewhere(pins);
+            if (!Sha256Equals(gallery, pins.GalleryDlExe.Sha256))
+                gallery = FindGalleryElsewhere(pins, rootList);
 
             return new ToolPaths
             {
-                YtDlp = yt,
+                YtDlp = Path.Combine(root, "yt-dlp.exe"),
                 FfmpegDir = root,
                 GalleryDl = gallery
             };
@@ -79,12 +66,20 @@ public static class ToolBootstrapper
         return null;
     }
 
-    private static string? FindGalleryElsewhere(ToolPinTable pins)
+    internal static bool HasVerifiedCore(string root, ToolPinTable pins)
+        => Sha256Equals(Path.Combine(root, "yt-dlp.exe"), pins.YtDlp.Sha256)
+           && HasVerifiedFfmpeg(root, pins);
+
+    internal static bool HasVerifiedFfmpeg(string root, ToolPinTable pins)
+        => Sha256Equals(Path.Combine(root, "ffmpeg.exe"), pins.FfmpegExe.Sha256)
+           && Sha256Equals(Path.Combine(root, "ffprobe.exe"), pins.FfprobeExe.Sha256);
+
+    private static string? FindGalleryElsewhere(ToolPinTable pins, IEnumerable<string> roots)
     {
-        foreach (var root in CandidateRoots())
+        foreach (var root in roots)
         {
             var gallery = Path.Combine(root, "gallery-dl.exe");
-            if (File.Exists(gallery) && Sha256Equals(gallery, pins.GalleryDlExe.Sha256))
+            if (Sha256Equals(gallery, pins.GalleryDlExe.Sha256))
                 return gallery;
         }
 
@@ -106,7 +101,7 @@ public static class ToolBootstrapper
 
             try
             {
-                return await EnsureCoreAsync(Pins, existing, progress, cancellationToken).ConfigureAwait(false);
+                return await EnsureCoreAsync(Pins, progress, cancellationToken).ConfigureAwait(false);
             }
             catch (InvalidOperationException ex)
                 when (ex.Message.StartsWith("Hash mismatch", StringComparison.Ordinal)
@@ -116,7 +111,7 @@ public static class ToolBootstrapper
                 // fall back to the pins compiled into this build.
                 AppLog.Warn($"Remote tool pins rejected: {ex.Message}. Using embedded pins.");
                 ToolPins.ResetToEmbedded();
-                return await EnsureCoreAsync(Pins, TryFind(), progress, cancellationToken).ConfigureAwait(false);
+                return await EnsureCoreAsync(Pins, progress, cancellationToken).ConfigureAwait(false);
             }
         }
         finally
@@ -129,7 +124,6 @@ public static class ToolBootstrapper
 
     private static async Task<ToolPaths> EnsureCoreAsync(
         ToolPinTable pins,
-        ToolPaths? existing,
         IProgress<string>? progress,
         CancellationToken cancellationToken)
     {
@@ -138,19 +132,27 @@ public static class ToolBootstrapper
         using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(8) };
 
         progress?.Report("tools");
-        if (existing is null)
+
+        // Only the local tools directory is written. A root beside the exe that
+        // fails its hashes is left alone and simply not used.
+        if (!HasVerifiedCore(dest, pins) && TryFind(pins, CandidateRoots()) is null)
         {
             await DownloadVerifiedAsync(http, pins.YtDlp.Url, Path.Combine(dest, "yt-dlp.exe"), pins.YtDlp.Sha256, cancellationToken)
                 .ConfigureAwait(false);
 
-            var ffmpeg = Path.Combine(dest, "ffmpeg.exe");
-            if (!IsUsableFfmpeg(ffmpeg))
+            if (!HasVerifiedFfmpeg(dest, pins))
             {
                 var zipPath = Path.Combine(dest, "ffmpeg.zip");
                 await DownloadVerifiedAsync(http, pins.FfmpegZip.Url, zipPath, pins.FfmpegZip.Sha256, cancellationToken)
                     .ConfigureAwait(false);
                 ExtractFfmpeg(zipPath, dest);
                 TryDelete(zipPath);
+                if (!HasVerifiedFfmpeg(dest, pins))
+                {
+                    TryDelete(Path.Combine(dest, "ffmpeg.exe"));
+                    TryDelete(Path.Combine(dest, "ffprobe.exe"));
+                    throw new InvalidOperationException("Hash mismatch for ffmpeg.exe.");
+                }
             }
         }
 
@@ -171,7 +173,7 @@ public static class ToolBootstrapper
             AppLog.Warn($"gallery-dl download failed: {ex.Message}");
         }
 
-        return TryFind(pins) ?? existing ?? throw new InvalidOperationException("Could not install yt-dlp or ffmpeg.");
+        return TryFind(pins, CandidateRoots()) ?? throw new InvalidOperationException("Could not install yt-dlp or ffmpeg.");
     }
 
     private static readonly ConcurrentDictionary<string, (long Length, DateTime Written, string Hash)> HashCache = new();
@@ -268,9 +270,19 @@ internal sealed class ToolPin
     public required string Sha256 { get; init; }
 }
 
+internal sealed class ToolHash
+{
+    [JsonPropertyName("sha256")]
+    public required string Sha256 { get; init; }
+}
+
 internal sealed class ToolPinTable
 {
     internal const string ResourceName = "FetchIt.tool-pins.json";
+
+    /// <summary>Monotonic; a remote table never replaces a newer cached or embedded one.</summary>
+    [JsonPropertyName("version")]
+    public required int Version { get; init; }
 
     [JsonPropertyName("ytDlp")]
     public required ToolPin YtDlp { get; init; }
@@ -278,10 +290,21 @@ internal sealed class ToolPinTable
     [JsonPropertyName("ffmpegZip")]
     public required ToolPin FfmpegZip { get; init; }
 
+    /// <summary>Hash of ffmpeg.exe as extracted from <see cref="FfmpegZip"/>.</summary>
+    [JsonPropertyName("ffmpegExe")]
+    public required ToolHash FfmpegExe { get; init; }
+
+    /// <summary>Hash of ffprobe.exe as extracted from <see cref="FfmpegZip"/>.</summary>
+    [JsonPropertyName("ffprobeExe")]
+    public required ToolHash FfprobeExe { get; init; }
+
     [JsonPropertyName("galleryDlExe")]
     public required ToolPin GalleryDlExe { get; init; }
 
-    internal IEnumerable<ToolPin> All => [YtDlp, FfmpegZip, GalleryDlExe];
+    internal IEnumerable<ToolPin> Downloads => [YtDlp, FfmpegZip, GalleryDlExe];
+
+    internal IEnumerable<string> AllHashes =>
+        [YtDlp.Sha256, FfmpegZip.Sha256, FfmpegExe.Sha256, FfprobeExe.Sha256, GalleryDlExe.Sha256];
 
     internal static ToolPinTable Load()
     {
@@ -316,34 +339,62 @@ internal sealed class ToolPinTable
 
     private void Validate()
     {
-        if (YtDlp is null || FfmpegZip is null || GalleryDlExe is null)
+        if (YtDlp is null || FfmpegZip is null || FfmpegExe is null || FfprobeExe is null || GalleryDlExe is null)
             throw new InvalidOperationException("tool-pins.json is missing a pin.");
-        foreach (var pin in All)
+        if (Version < 1)
+            throw new InvalidOperationException("tool-pins.json version must be a positive integer.");
+        foreach (var hash in AllHashes)
         {
-            if (string.IsNullOrWhiteSpace(pin.Url) || string.IsNullOrWhiteSpace(pin.Sha256))
-                throw new InvalidOperationException("tool-pins.json is missing a url or sha256.");
-            if (pin.Sha256.Length != 64 || !pin.Sha256.All(Uri.IsHexDigit))
+            if (string.IsNullOrWhiteSpace(hash) || hash.Length != 64 || !hash.All(Uri.IsHexDigit))
                 throw new InvalidOperationException("tool-pins.json has a malformed sha256.");
+        }
+
+        foreach (var pin in Downloads)
+        {
             if (!ToolPins.IsAllowedToolUrl(pin.Url))
                 throw new InvalidOperationException($"tool-pins.json URL not allowed: {pin.Url}");
         }
     }
 
     internal bool SameAs(ToolPinTable other)
-        => All.Zip(other.All).All(pair =>
-            pair.First.Url == pair.Second.Url
-            && pair.First.Sha256.Equals(pair.Second.Sha256, StringComparison.OrdinalIgnoreCase));
+        => Version == other.Version
+           && Downloads.Zip(other.Downloads).All(pair => pair.First.Url == pair.Second.Url)
+           && AllHashes.Zip(other.AllHashes).All(pair =>
+               pair.First.Equals(pair.Second, StringComparison.OrdinalIgnoreCase));
+}
+
+internal enum PinDecision
+{
+    /// <summary>Identical to the current table.</summary>
+    Same,
+    /// <summary>Strictly newer: adopt it.</summary>
+    Newer,
+    /// <summary>Different content but not a higher version: refuse (downgrade or replay).</summary>
+    Stale
 }
 
 /// <summary>
 /// Tool pins come from the embedded table, optionally overridden by a newer
-/// copy of scripts/tool-pins.json fetched from this repository. That lets a
-/// yt-dlp bump reach users without shipping a new app build.
+/// copy of scripts/tool-pins.json fetched from this repository. The remote copy
+/// is accepted only with a valid ECDSA P-256 signature from the project's
+/// signing key and a version higher than the one in use, so a bare write to
+/// the branch cannot change which binaries the app runs.
 /// </summary>
 internal static class ToolPins
 {
     public const string RemoteUrl = "https://raw.githubusercontent.com/stuckinowhere/fetch-it/main/scripts/tool-pins.json";
+    public const string RemoteSignatureUrl = RemoteUrl + ".sig";
+    internal const string PublicKeyResourceName = "FetchIt.tool-pins.pub";
 
+    /// <summary>Only these release paths may host a pinned binary.</summary>
+    internal static readonly string[] AllowedUrlPrefixes =
+    [
+        "https://github.com/yt-dlp/yt-dlp/releases/download/",
+        "https://github.com/GyanD/codexffmpeg/releases/download/",
+        "https://codeberg.org/mikf/gallery-dl/releases/download/"
+    ];
+
+    internal static readonly string PublicKeyBase64 = LoadPublicKey();
     internal static readonly ToolPinTable Embedded = ToolPinTable.Load();
     private static volatile ToolPinTable _current = LoadCachedOrEmbedded();
 
@@ -354,26 +405,78 @@ internal static class ToolPins
         "WasdFetchIt",
         "tool-pins.json");
 
+    public static string CacheSignaturePath => CachePath + ".sig";
+
     internal static bool IsAllowedToolUrl(string? url)
     {
         if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
             return false;
-        if (uri.Scheme != Uri.UriSchemeHttps)
+        if (uri.Scheme != Uri.UriSchemeHttps || !string.IsNullOrEmpty(uri.UserInfo))
             return false;
-        var host = uri.Host.TrimEnd('.').ToLowerInvariant();
-        return host is "github.com"
-            or "objects.githubusercontent.com"
-            or "release-assets.githubusercontent.com"
-            or "codeberg.org"
-            or "files.pythonhosted.org";
+        // AbsoluteUri is normalized (lowercase host, dot segments resolved), so a
+        // prefix match cannot be escaped with "..", "@" or mixed case.
+        var normalized = uri.AbsoluteUri;
+        return AllowedUrlPrefixes.Any(prefix => normalized.StartsWith(prefix, StringComparison.Ordinal))
+               && !normalized.Contains("/../", StringComparison.Ordinal);
+    }
+
+    private static string LoadPublicKey()
+    {
+        using var stream = typeof(ToolBootstrapper).Assembly.GetManifestResourceStream(PublicKeyResourceName)
+            ?? throw new InvalidOperationException($"Missing embedded {PublicKeyResourceName}.");
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd().Trim();
+    }
+
+    /// <summary>ECDSA P-256 over SHA-256, IEEE P1363 (r||s) signature, SPKI public key.</summary>
+    internal static bool VerifySignature(ReadOnlySpan<byte> data, ReadOnlySpan<byte> signature, string publicKeyBase64)
+    {
+        try
+        {
+            if (signature.Length != 64)
+                return false;
+            using var ecdsa = ECDsa.Create();
+            ecdsa.ImportSubjectPublicKeyInfo(Convert.FromBase64String(publicKeyBase64), out _);
+            return ecdsa.VerifyData(data, signature, HashAlgorithmName.SHA256);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    internal static bool VerifySignature(byte[] data, string signatureBase64)
+    {
+        try
+        {
+            return VerifySignature(data, Convert.FromBase64String(signatureBase64.Trim()), PublicKeyBase64);
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
+
+    internal static PinDecision Decide(ToolPinTable current, ToolPinTable candidate)
+    {
+        if (candidate.SameAs(current))
+            return PinDecision.Same;
+        return candidate.Version > current.Version ? PinDecision.Newer : PinDecision.Stale;
     }
 
     private static ToolPinTable LoadCachedOrEmbedded()
     {
         try
         {
-            if (File.Exists(CachePath))
-                return ToolPinTable.Parse(File.ReadAllText(CachePath));
+            if (File.Exists(CachePath) && File.Exists(CacheSignaturePath))
+            {
+                var bytes = File.ReadAllBytes(CachePath);
+                if (!VerifySignature(bytes, File.ReadAllText(CacheSignaturePath)))
+                    throw new InvalidOperationException("cached signature invalid");
+                var cached = ToolPinTable.Parse(System.Text.Encoding.UTF8.GetString(bytes));
+                if (Decide(Embedded, cached) == PinDecision.Newer)
+                    return cached;
+            }
         }
         catch (Exception ex)
         {
@@ -386,25 +489,20 @@ internal static class ToolPins
     internal static void ResetToEmbedded()
     {
         _current = Embedded;
-        try
-        {
-            if (File.Exists(CachePath))
-                File.Delete(CachePath);
-        }
-        catch
-        {
-        }
+        TryDelete(CachePath);
+        TryDelete(CacheSignaturePath);
     }
 
-    /// <summary>Fetch the latest pins; never throws. Returns true when pins changed.</summary>
+    /// <summary>Fetch the latest signed pins; never throws. Returns true when pins changed.</summary>
     public static async Task<bool> RefreshAsync(CancellationToken cancellationToken = default)
     {
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8), MaxResponseContentBufferSize = 64 * 1024 };
             http.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "WasdFetchIt-Pins");
-            var json = await http.GetStringAsync(RemoteUrl, cancellationToken).ConfigureAwait(false);
-            return Apply(json);
+            var json = await http.GetByteArrayAsync(RemoteUrl, cancellationToken).ConfigureAwait(false);
+            var sig = await http.GetStringAsync(RemoteSignatureUrl, cancellationToken).ConfigureAwait(false);
+            return Apply(json, sig);
         }
         catch (Exception ex)
         {
@@ -413,16 +511,40 @@ internal static class ToolPins
         }
     }
 
-    internal static bool Apply(string json)
+    internal static bool Apply(byte[] json, string signatureBase64)
     {
-        var table = ToolPinTable.Parse(json);
-        if (table.SameAs(_current))
-            return false;
+        if (json.Length > 64 * 1024)
+            throw new InvalidOperationException("tool-pins.json is too large.");
+        if (!VerifySignature(json, signatureBase64))
+            throw new InvalidOperationException("tool-pins.json signature does not verify.");
+
+        var table = ToolPinTable.Parse(System.Text.Encoding.UTF8.GetString(json));
+        switch (Decide(_current, table))
+        {
+            case PinDecision.Same:
+                return false;
+            case PinDecision.Stale:
+                throw new InvalidOperationException(
+                    $"tool-pins.json version {table.Version} is not newer than {_current.Version}.");
+        }
 
         Directory.CreateDirectory(Path.GetDirectoryName(CachePath)!);
-        File.WriteAllText(CachePath, json);
+        File.WriteAllBytes(CachePath, json);
+        File.WriteAllText(CacheSignaturePath, signatureBase64.Trim());
         _current = table;
-        AppLog.Info("Tool pins updated from remote.");
+        AppLog.Info($"Tool pins updated from remote (version {table.Version}).");
         return true;
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch
+        {
+        }
     }
 }

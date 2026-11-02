@@ -1,0 +1,5 @@
+# The pin signature covers the exact bytes of tool-pins.json: never let
+# autocrlf rewrite these files on checkout.
+scripts/tool-pins.json text eol=lf
+scripts/tool-pins.json.sig text eol=lf
+scripts/tool-pins.pub text eol=lf

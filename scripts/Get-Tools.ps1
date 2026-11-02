@@ -15,6 +15,11 @@ foreach ($pin in @($pins.ytDlp, $pins.ffmpegZip, $pins.galleryDlExe)) {
         throw "scripts/tool-pins.json is missing a url or sha256."
     }
 }
+foreach ($pin in @($pins.ffmpegExe, $pins.ffprobeExe)) {
+    if (-not $pin -or -not $pin.sha256) {
+        throw "scripts/tool-pins.json is missing the ffmpeg.exe / ffprobe.exe sha256."
+    }
+}
 
 function Test-Sha256([string] $Path, [string] $Expected) {
     if (-not (Test-Path $Path)) { return $false }
@@ -42,16 +47,24 @@ function Get-Verified([string] $Url, [string] $Dest, [string] $Sha) {
 Get-Verified $pins.ytDlp.url (Join-Path $OutDir "yt-dlp.exe") $pins.ytDlp.sha256
 
 $ffmpeg = Join-Path $OutDir "ffmpeg.exe"
-if (-not (Test-Path $ffmpeg)) {
+$ffprobe = Join-Path $OutDir "ffprobe.exe"
+# Both binaries are pinned by hash, not just the zip: the app refuses a tools
+# folder whose ffmpeg.exe / ffprobe.exe do not match.
+if (-not ((Test-Sha256 $ffmpeg $pins.ffmpegExe.sha256) -and (Test-Sha256 $ffprobe $pins.ffprobeExe.sha256))) {
     $zip = Join-Path $OutDir "ffmpeg.zip"
     Get-Verified $pins.ffmpegZip.url $zip $pins.ffmpegZip.sha256
     $tmp = Join-Path $OutDir "ffmpeg-unpack"
     if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
     Expand-Archive -Path $zip -DestinationPath $tmp -Force
     Get-ChildItem $tmp -Recurse -Filter ffmpeg.exe | Select-Object -First 1 | ForEach-Object { Copy-Item $_.FullName $ffmpeg -Force }
-    Get-ChildItem $tmp -Recurse -Filter ffprobe.exe | Select-Object -First 1 | ForEach-Object { Copy-Item $_.FullName (Join-Path $OutDir "ffprobe.exe") -Force }
+    Get-ChildItem $tmp -Recurse -Filter ffprobe.exe | Select-Object -First 1 | ForEach-Object { Copy-Item $_.FullName $ffprobe -Force }
     Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item $zip -Force -ErrorAction SilentlyContinue
+    if (-not (Test-Sha256 $ffmpeg $pins.ffmpegExe.sha256)) { throw "Hash mismatch for ffmpeg.exe after extraction." }
+    if (-not (Test-Sha256 $ffprobe $pins.ffprobeExe.sha256)) { throw "Hash mismatch for ffprobe.exe after extraction." }
+}
+else {
+    Write-Host "Have ffmpeg.exe and ffprobe.exe"
 }
 
 # Standalone gallery-dl.exe: no Python needed on the user's PC.

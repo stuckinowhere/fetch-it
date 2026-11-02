@@ -36,7 +36,7 @@ public sealed class GalleryDlService
             .ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(text) || LooksLikeFailure(text))
         {
-            AppLog.Warn($"gallery-dl probe failed for {url}:\n{text}");
+            AppLog.Warn($"gallery-dl probe failed for {AppLog.SafeUrl(url)}:\n{text}");
             throw new InvalidOperationException(ShortError(url, text));
         }
         var probe = GalleryDlParser.Parse(text);

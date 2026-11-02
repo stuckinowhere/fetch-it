@@ -37,7 +37,9 @@ That builds `publish\win-x64\FetchIt.exe`, downloads yt-dlp / gallery-dl / ffmpe
 .\run-windows.ps1
 ```
 
-The first fetch downloads pinned yt-dlp, ffmpeg, and the standalone gallery-dl.exe into `%LocalAppData%\WasdFetchIt\tools` if they are not already beside the exe. No Python needed. On launch the app also reads [`scripts/tool-pins.json`](scripts/tool-pins.json) from `main`, so a yt-dlp bump reaches users without a new release.
+The first fetch downloads pinned yt-dlp, ffmpeg, and the standalone gallery-dl.exe into `%LocalAppData%\WasdFetchIt\tools` if they are not already beside the exe. No Python needed. Every binary the app runs (yt-dlp.exe, ffmpeg.exe, ffprobe.exe, gallery-dl.exe) must match the SHA-256 in [`scripts/tool-pins.json`](scripts/tool-pins.json); a folder that fails is ignored.
+
+On launch the app also reads `scripts/tool-pins.json` and `scripts/tool-pins.json.sig` from `main`, so a yt-dlp bump reaches users without a new release. A remote table is accepted only when its ECDSA P-256 signature verifies against the public key compiled into the app (`scripts/tool-pins.pub`), its `version` is higher than the one in use, and every URL sits under the known release paths of yt-dlp, GyanD/codexffmpeg and mikf/gallery-dl. To change pins: edit the JSON, bump `version`, then `node scripts/sign-tool-pins.mjs --key <private-key.pem>` (the key lives outside the repo; CI fails on an unsigned change). `node scripts/new-tool-pins-key.mjs <path>` creates a new key pair.
 
 A log of what the tools said is kept in `%LocalAppData%\WasdFetchIt\logs\fetchit.log` (1 MB, three files) for when a link fails.
 
@@ -75,11 +77,11 @@ After this branch is on `main`:
 ```powershell
 git checkout main
 git pull
-git tag v1.2.0
-git push origin v1.2.0
+git tag v1.2.1
+git push origin v1.2.1
 ```
 
-That runs `.github/workflows/release.yml`, which tests, publishes a self-contained win-x64 build, fetches tools, and creates a GitHub Release with `fetch-it-v1.2.0-win-x64-setup.exe`, `fetch-it-v1.2.0-win-x64.zip`, and `SHA256SUMS.txt` (the in-app updater refuses a release without it).
+That runs `.github/workflows/release.yml`, which tests, publishes a self-contained win-x64 build, fetches tools, and creates a GitHub Release with `fetch-it-v1.2.1-win-x64-setup.exe`, `fetch-it-v1.2.1-win-x64.zip`, and `SHA256SUMS.txt` (the in-app updater refuses a release without it).
 
 To build the installer locally (needs [Inno Setup 6](https://jrsoftware.org/isinfo.php)):
 

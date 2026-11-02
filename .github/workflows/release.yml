@@ -18,6 +18,13 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.22.1'
+
+      - name: Verify tool-pins signature
+        run: node scripts/verify-tool-pins.mjs
+
       - name: Test
         run: dotnet test FetchIt.sln -c Release --nologo
 

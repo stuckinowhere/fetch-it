@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: windows-latest
@@ -14,3 +17,13 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - run: dotnet test FetchIt.sln -c Release --nologo
+
+  tool-pins:
+    name: Verify tool-pins signature
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.22.1'
+      - run: node scripts/verify-tool-pins.mjs

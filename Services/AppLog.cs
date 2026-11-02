@@ -14,8 +14,11 @@ public static class AppLog
     public const int KeepFiles = 3;
 
     private static readonly object Gate = new();
+    // Every credential-bearing form the app itself builds: cookie jar paths,
+    // gallery-dl api-token, Instagram sessionid, GoFile bearer/cookie/query
+    // tokens, password query values and URL fragments (GoFile folder passwords).
     private static readonly Regex Secrets = new(
-        @"(--cookies\s+)(\S+)|(api-token=)(\S+)|(sessionid=)([^;\s]+)",
+        @"(--cookies\s+)(\S+)|(api-token=)(\S+)|(sessionid=)([^;\s]+)|(Authorization:\s*Bearer\s+)(\S+)|(accountToken=)([^;\s]+)|([?&]token=)([^&\s]+)|([?&]password=)([^&\s]*)|(#)(\S+)",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     public static string Directory => Path.Combine(
@@ -42,6 +45,15 @@ public static class AppLog
 
         return match.Value;
     });
+
+    /// <summary>A URL safe to log: no fragment, no query (both can carry passwords or tokens).</summary>
+    internal static string SafeUrl(string? url)
+    {
+        var text = (url ?? "").Trim();
+        if (!Uri.TryCreate(text, UriKind.Absolute, out var uri))
+            return Redact(text);
+        return uri.GetLeftPart(UriPartial.Path);
+    }
 
     private static void Write(string level, string message)
     {
