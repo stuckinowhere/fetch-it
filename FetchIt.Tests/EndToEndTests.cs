@@ -87,7 +87,8 @@ public class EndToEndTests(ITestOutputHelper output)
         output.WriteLine($"title: {probe.Title} | items: {probe.Items.Count} | took: {took.TotalSeconds:0.0}s");
         Assert.True(probe.Items.Count >= 1);
         Assert.All(probe.Items, item => Assert.Equal(MediaKind.Video, item.Kind));
-        Assert.True(took < TimeSpan.FromSeconds(15), $"took {took.TotalSeconds:0.0}s");
+        // Includes a cold SHA-256 pass over the tool binaries on first use.
+        Assert.True(took < TimeSpan.FromSeconds(30), $"took {took.TotalSeconds:0.0}s");
     }
 
     [Fact]
@@ -96,19 +97,29 @@ public class EndToEndTests(ITestOutputHelper output)
         if (!Enabled) return;
 
         using var http = new HttpClient();
-        var json = await http.GetStringAsync(ToolPins.RemoteUrl);
-        output.WriteLine(json);
-        // main may still carry the old schema until this branch lands; either
-        // outcome must be a clean decision, never a crash.
+        var json = await http.GetByteArrayAsync(ToolPins.RemoteUrl);
+        output.WriteLine(System.Text.Encoding.UTF8.GetString(json));
+        string? sig = null;
         try
         {
-            var table = ToolPinTable.Parse(json);
-            Assert.True(ToolPins.IsAllowedToolUrl(table.YtDlp.Url));
+            sig = await http.GetStringAsync(ToolPins.RemoteSignatureUrl);
         }
-        catch (InvalidOperationException ex)
+        catch (HttpRequestException ex)
         {
-            output.WriteLine($"rejected: {ex.Message}");
+            output.WriteLine($"no signature on main yet: {ex.Message}");
         }
+
+        // main may still carry an unsigned or older schema until this branch
+        // lands; either outcome must be a clean decision, never a crash.
+        if (sig is null || !ToolPins.VerifySignature(json, sig))
+        {
+            output.WriteLine("rejected: signature missing or invalid");
+            return;
+        }
+
+        var table = ToolPinTable.Parse(System.Text.Encoding.UTF8.GetString(json));
+        Assert.All(table.Downloads, pin => Assert.True(ToolPins.IsAllowedToolUrl(pin.Url)));
+        output.WriteLine($"accepted: version {table.Version}, decision {ToolPins.Decide(ToolPins.Embedded, table)}");
     }
 
     private sealed class RecordingUi : IUiHost

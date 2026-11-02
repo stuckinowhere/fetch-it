@@ -26,6 +26,7 @@
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
     <EmbeddedResource Include="scripts\tool-pins.json" LogicalName="FetchIt.tool-pins.json" />
+    <EmbeddedResource Include="scripts\tool-pins.pub" LogicalName="FetchIt.tool-pins.pub" />
   </ItemGroup>
 
   <ItemGroup>
