@@ -221,7 +221,7 @@ public partial class MainViewModel : ObservableObject
         IsProbing = true;
         HideStatus();
         ShowWork("Reading link…", indeterminate: true);
-        AppLog.Info($"fetch {Url.Trim()}");
+        AppLog.Info($"fetch {AppLog.SafeUrl(Url)}");
         try
         {
             var probe = await ProbeWithSessionAsync(Url.Trim(), token);
@@ -242,7 +242,7 @@ public partial class MainViewModel : ObservableObject
         {
             if (version != _probeVersion)
                 return;
-            AppLog.Error($"fetch failed for {Url.Trim()}", ex);
+            AppLog.Error($"fetch failed for {AppLog.SafeUrl(Url)}", ex);
             ClearResult();
             HideWork();
             await FailAsync(Short(ex.Message));
@@ -321,7 +321,7 @@ public partial class MainViewModel : ObservableObject
         _fetchCts = cts;
         previous?.Dispose();
         var token = cts.Token;
-        AppLog.Info($"download {Url.Trim()} -> {FolderPath}");
+        AppLog.Info($"download {AppLog.SafeUrl(Url)} -> {FolderPath}");
 
         try
         {
@@ -335,7 +335,7 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            AppLog.Error($"download failed for {Url.Trim()}", ex);
+            AppLog.Error($"download failed for {AppLog.SafeUrl(Url)}", ex);
             HideWork();
             await FailAsync(Short(ex.Message));
         }

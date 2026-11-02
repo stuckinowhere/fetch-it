@@ -498,7 +498,7 @@ internal static class ToolPins
     {
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8), MaxResponseContentBufferSize = 64 * 1024 };
             http.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "WasdFetchIt-Pins");
             var json = await http.GetByteArrayAsync(RemoteUrl, cancellationToken).ConfigureAwait(false);
             var sig = await http.GetStringAsync(RemoteSignatureUrl, cancellationToken).ConfigureAwait(false);

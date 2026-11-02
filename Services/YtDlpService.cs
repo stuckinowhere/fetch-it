@@ -32,7 +32,7 @@ public sealed class YtDlpService
             tools.YtDlp, args, cancellationToken, timeout: TimeSpan.FromSeconds(15)).ConfigureAwait(false);
         if (LooksLikeFailure(text))
         {
-            AppLog.Warn($"yt-dlp probe failed for {url}:\n{text}");
+            AppLog.Warn($"yt-dlp probe failed for {AppLog.SafeUrl(url)}:\n{text}");
             throw new InvalidOperationException(ShortError(text));
         }
         return YtDlpParser.Parse(text);
