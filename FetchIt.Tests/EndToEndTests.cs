@@ -139,5 +139,6 @@ public class EndToEndTests(ITestOutputHelper output)
         public Task<string?> AskQualityAsync(string title, IReadOnlyList<MediaQuality> qualities)
             => Task.FromResult<string?>(qualities.Count > 0 ? qualities[0].Url : null);
         public Task<bool> AskPasteLinkAsync(string link) => Task.FromResult(false);
+        public Task ShowAccountAsync() => Task.CompletedTask;
     }
 }

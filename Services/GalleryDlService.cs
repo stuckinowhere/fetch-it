@@ -275,8 +275,23 @@ public sealed class GalleryDlService
         if (MediaRouter.LooksPrivate(text))
             return MediaRouter.PublicOnlyMessage;
         var social = MediaRouter.TryParseHttpUrl(url, out var uri) && MediaRouter.IsSocialPostHost(uri);
-        if (social)
+        return ReadError(social, SessionCookies.HasUsableFile(), text);
+    }
+
+    /// <summary>
+    /// A saved session stays saved unless the tool says login is needed: a
+    /// deleted post or a rate limit must not sign the user out.
+    /// </summary>
+    internal static string ReadError(bool social, bool hasSavedSession, string text)
+    {
+        if (social && (!hasSavedSession || LooksLikeLoginRequired(text)))
             return MediaRouter.InstagramSessionMessage;
         return "Could not read that link.";
     }
+
+    internal static bool LooksLikeLoginRequired(string text)
+        => LoginMarkers.Any(marker => text.Contains(marker, StringComparison.OrdinalIgnoreCase));
+
+    private static readonly string[] LoginMarkers =
+        ["accounts/login", "login page", "login required", "unauthorized", "challenge", "checkpoint"];
 }

@@ -39,6 +39,24 @@
                             Width="48"
                             Height="48"
                             Padding="0"
+                            Command="{Binding ShowAccountCommand}"
+                            ToolTip.Tip="{x:Static s:L.AccountTip}"
+                            AutomationProperties.Name="{x:Static s:L.AccountTip}">
+                        <Panel>
+                            <icons:MaterialIcon Kind="AccountCircle"
+                                                Width="26"
+                                                Height="26"
+                                                IsVisible="{Binding IsSignedIn}" />
+                            <icons:MaterialIcon Kind="AccountCircleOutline"
+                                                Width="26"
+                                                Height="26"
+                                                IsVisible="{Binding IsSignedIn, Converter={x:Static BoolConverters.Not}}" />
+                        </Panel>
+                    </Button>
+                    <Button Classes="Flat"
+                            Width="48"
+                            Height="48"
+                            Padding="0"
                             Command="{Binding PickFolderCommand}"
                             ToolTip.Tip="{x:Static s:L.SaveFolderTip}">
                         <icons:MaterialIcon Kind="Folder"

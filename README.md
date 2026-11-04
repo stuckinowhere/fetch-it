@@ -54,7 +54,7 @@ If PowerShell blocks scripts: `Set-ExecutionPolicy -Scope Process Bypass`.
 - Folder icon — where files go. Defaults to your Windows Downloads folder (including if you moved it). Remembers the last folder you pick.
 - Theme icon — light or dark.
 - Update icon — check GitHub Releases. On launch the app does this quietly and only prompts when a newer setup exists. **Install** downloads the setup (or the zip for a portable copy), checks it against the release `SHA256SUMS.txt`, runs it, and reopens the app.
-- Instagram may ask you to sign in in a small window. Chrome can stay open. No password is stored.
+- Account icon — sign in to Instagram or sign out. The session stays saved (encrypted for your Windows user) and is reused until it expires or Instagram rejects it. No password is stored. Instagram also asks you to sign in on the first link if you have not. Chrome can stay open.
 
 A post with several files is saved in the folder you picked, next to each other.
 
@@ -77,11 +77,11 @@ After this branch is on `main`:
 ```powershell
 git checkout main
 git pull
-git tag v1.2.2
-git push origin v1.2.2
+git tag v1.2.3
+git push origin v1.2.3
 ```
 
-That runs `.github/workflows/release.yml`, which tests, publishes a self-contained win-x64 build, fetches tools, and creates a GitHub Release with `fetch-it-v1.2.2-win-x64-setup.exe`, `fetch-it-v1.2.2-win-x64.zip`, and `SHA256SUMS.txt` (the in-app updater refuses a release without it).
+That runs `.github/workflows/release.yml`, which tests, publishes a self-contained win-x64 build, fetches tools, and creates a GitHub Release with `fetch-it-v1.2.3-win-x64-setup.exe`, `fetch-it-v1.2.3-win-x64.zip`, and `SHA256SUMS.txt` (the in-app updater refuses a release without it).
 
 To build the installer locally (needs [Inno Setup 6](https://jrsoftware.org/isinfo.php)):
 
