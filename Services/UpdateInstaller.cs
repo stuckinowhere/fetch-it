@@ -3,8 +3,48 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Threading;
 
 namespace FetchIt.Services;
+
+/// <summary>
+/// What the updater does to the outside world once a verified file is ready:
+/// start a process, close this app, and where the app lives. Tests swap these.
+/// </summary>
+public sealed class UpdateHost
+{
+    /// <summary>Start a process; false when it did not start.</summary>
+    public Func<ProcessStartInfo, bool> Launch { get; init; } = DefaultLaunch;
+
+    /// <summary>Ask the app to close. Must be safe to call from any thread.</summary>
+    public Action RequestShutdown { get; init; } = DefaultRequestShutdown;
+
+    public string TargetDirectory { get; init; } = AppContext.BaseDirectory;
+
+    public static UpdateHost Default { get; } = new();
+
+    private static bool DefaultLaunch(ProcessStartInfo start)
+    {
+        try
+        {
+            return Process.Start(start) is not null;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn($"Could not start {Path.GetFileName(start.FileName)}: {ex.Message}");
+            return false;
+        }
+    }
+
+    // The install steps run after ConfigureAwait(false), i.e. on a pool thread.
+    // Avalonia only lets the UI thread shut the app down, so always post there.
+    private static void DefaultRequestShutdown()
+        => Dispatcher.UIThread.Post(() =>
+        {
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+                desktop.Shutdown();
+        });
+}
 
 public sealed class UpdateInstaller : IDisposable
 {
@@ -14,16 +54,20 @@ public sealed class UpdateInstaller : IDisposable
     public const string SumsFileName = "SHA256SUMS.txt";
     public const string VerificationFailedMessage = "Update file failed verification.";
     public const string NoSumsMessage = "That release has no SHA256SUMS.txt, so it cannot be verified.";
+    public const string RestartManuallyMessage = "Update installed. Close fetch it and open it again.";
 
     private readonly HttpClient _http;
     private readonly long _minBytes;
     private readonly long _maxBytes;
+    private readonly UpdateHost _host;
 
     public UpdateInstaller(
         HttpMessageHandler? handler = null,
         long minBytes = DefaultMinBytes,
-        long maxBytes = DefaultMaxBytes)
+        long maxBytes = DefaultMaxBytes,
+        UpdateHost? host = null)
     {
+        _host = host ?? UpdateHost.Default;
         _minBytes = minBytes;
         _maxBytes = maxBytes;
         _http = handler is null
@@ -295,49 +339,89 @@ public sealed class UpdateInstaller : IDisposable
         }
     }
 
-    public static void RestartFrom(string targetDir)
+    /// <summary>
+    /// Start the new FetchIt.exe and close this one. Returns false when the new
+    /// process did not start; the files are already in place either way.
+    /// </summary>
+    internal bool RestartFrom(string targetDir)
     {
         var exe = Path.Combine(targetDir, "FetchIt.exe");
-        if (File.Exists(exe))
+        if (!File.Exists(exe))
+            return false;
+
+        // Release the single-instance lock first so the new process can own it.
+        App.SingleInstance?.Dispose();
+        App.SingleInstance = null;
+        var started = _host.Launch(new ProcessStartInfo
         {
-            App.SingleInstance?.Dispose();
-            App.SingleInstance = null;
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = exe,
-                UseShellExecute = true,
-                WorkingDirectory = targetDir
-            });
-            ShutdownApp();
-        }
+            FileName = exe,
+            UseShellExecute = true,
+            WorkingDirectory = targetDir
+        });
+        if (started)
+            _host.RequestShutdown();
+        return started;
     }
 
-    public static bool StartSetup(string path)
+    public static bool StartSetup(string path) => StartSetup(path, UpdateHost.Default);
+
+    internal static bool StartSetup(string path, UpdateHost host)
     {
         if (!IsSafeSetupPath(path) || !LooksLikePe(path))
             return false;
 
-        try
+        return host.Launch(new ProcessStartInfo
         {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = path,
-                Arguments = SilentArgs,
-                UseShellExecute = false,
-                WorkingDirectory = Path.GetDirectoryName(path)
-            });
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+            FileName = path,
+            Arguments = SilentArgs,
+            UseShellExecute = false,
+            WorkingDirectory = Path.GetDirectoryName(path)
+        });
     }
 
-    public static void ShutdownApp()
+    /// <summary>Close the app from any thread.</summary>
+    public static void ShutdownApp() => UpdateHost.Default.RequestShutdown();
+
+    /// <summary>
+    /// Download, verify and start the setup. Returns false only when nothing was
+    /// started, so the caller may still try another asset. Once Setup runs, this
+    /// app must close and nothing else may touch the install folder.
+    /// </summary>
+    internal async Task<bool> TryInstallSetupAsync(
+        string url,
+        IProgress<double>? progress,
+        CancellationToken cancellationToken,
+        string? expectedSha256)
     {
-        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            desktop.Shutdown();
+        var path = await DownloadSetupAsync(url, progress, cancellationToken, expectedSha256).ConfigureAwait(false);
+        if (!StartSetup(path, _host))
+        {
+            AppLog.Warn("Setup did not start.");
+            return false;
+        }
+
+        AppLog.Info("Setup started; closing for the update.");
+        _host.RequestShutdown();
+        return true;
+    }
+
+    /// <summary>
+    /// Download, verify and apply the zip, then restart. Once ApplyZip begins the
+    /// install folder has changed, so failures after that point are final.
+    /// </summary>
+    internal async Task InstallZipCoreAsync(
+        string url,
+        IProgress<double>? progress,
+        CancellationToken cancellationToken,
+        string? expectedSha256)
+    {
+        var zip = await DownloadZipAsync(url, progress, cancellationToken, expectedSha256).ConfigureAwait(false);
+        var dir = _host.TargetDirectory;
+        ApplyZip(zip, dir);
+        TryDelete(zip);
+        AppLog.Info("Update zip applied; restarting.");
+        if (!RestartFrom(dir))
+            throw new InvalidOperationException(RestartManuallyMessage);
     }
 
     public async Task InstallSetupAsync(
@@ -346,25 +430,16 @@ public sealed class UpdateInstaller : IDisposable
         CancellationToken cancellationToken,
         string? expectedSha256 = null)
     {
-        var path = await DownloadSetupAsync(url, progress, cancellationToken, expectedSha256).ConfigureAwait(true);
-        if (!StartSetup(path))
+        if (!await TryInstallSetupAsync(url, progress, cancellationToken, expectedSha256).ConfigureAwait(false))
             throw new InvalidOperationException("Could not start the installer.");
-        ShutdownApp();
     }
 
-    public async Task InstallZipAsync(
+    public Task InstallZipAsync(
         string url,
         IProgress<double>? progress,
         CancellationToken cancellationToken,
-        string? targetDir = null,
         string? expectedSha256 = null)
-    {
-        var zip = await DownloadZipAsync(url, progress, cancellationToken, expectedSha256).ConfigureAwait(false);
-        var dir = targetDir ?? AppContext.BaseDirectory;
-        ApplyZip(zip, dir);
-        TryDelete(zip);
-        RestartFrom(dir);
-    }
+        => InstallZipCoreAsync(url, progress, cancellationToken, expectedSha256);
 
     /// <summary>
     /// Pick the install path. A copy placed by Setup updates through Setup so
@@ -397,7 +472,7 @@ public sealed class UpdateInstaller : IDisposable
         IProgress<double>? progress,
         CancellationToken cancellationToken)
     {
-        var order = PlanOrder(result, IsInstalledWithSetup());
+        var order = PlanOrder(result, IsInstalledWithSetup(_host.TargetDirectory));
         if (order.Count == 0)
             throw new InvalidOperationException("No compatible installer found for this release.");
 
@@ -405,30 +480,47 @@ public sealed class UpdateInstaller : IDisposable
             throw new InvalidOperationException(NoSumsMessage);
         var sums = await DownloadSumsAsync(result.SumsUrl, cancellationToken).ConfigureAwait(false);
 
+        // Fall back to the next asset only while nothing has been changed:
+        // a failed download, or a setup that never started. A setup that runs,
+        // or a zip that starts unpacking, is the update; never stack another on it.
         Exception? last = null;
         foreach (var url in order)
         {
             var expected = ExpectedSha256(sums, url)
                 ?? throw new InvalidOperationException(NoSumsMessage);
-            try
+            var name = Path.GetFileName(new Uri(url).AbsolutePath);
+
+            if (IsZipDownload(url))
             {
-                if (IsZipDownload(url))
-                    await InstallZipAsync(url, progress, cancellationToken, expectedSha256: expected).ConfigureAwait(false);
-                else
-                    await InstallSetupAsync(url, progress, cancellationToken, expected).ConfigureAwait(false);
+                string zip;
+                try
+                {
+                    zip = await DownloadZipAsync(url, progress, cancellationToken, expected).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (IsRetryableDownloadFailure(ex))
+                {
+                    AppLog.Warn($"Update via {name} failed to download: {ex.Message}");
+                    last = ex;
+                    continue;
+                }
+
+                ApplyZip(zip, _host.TargetDirectory);
+                TryDelete(zip);
+                AppLog.Info("Update zip applied; restarting.");
+                if (!RestartFrom(_host.TargetDirectory))
+                    throw new InvalidOperationException(RestartManuallyMessage);
                 return;
             }
-            catch (OperationCanceledException)
+
+            try
             {
-                throw;
+                if (await TryInstallSetupAsync(url, progress, cancellationToken, expected).ConfigureAwait(false))
+                    return;
+                last = new InvalidOperationException("Could not start the installer.");
             }
-            catch (InvalidOperationException ex) when (ex.Message == VerificationFailedMessage)
+            catch (Exception ex) when (IsRetryableDownloadFailure(ex))
             {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                AppLog.Warn($"Update via {Path.GetFileName(new Uri(url).AbsolutePath)} failed: {ex.Message}");
+                AppLog.Warn($"Update via {name} failed to download: {ex.Message}");
                 last = ex;
             }
         }
@@ -436,10 +528,10 @@ public sealed class UpdateInstaller : IDisposable
         throw last ?? new InvalidOperationException("Could not install the update.");
     }
 
-    public Task InstallAsync(string url, IProgress<double>? progress, CancellationToken cancellationToken)
-        => IsZipDownload(url)
-            ? InstallZipAsync(url, progress, cancellationToken)
-            : InstallSetupAsync(url, progress, cancellationToken);
+    /// <summary>A failure before anything ran or changed; a tampered file is never retried.</summary>
+    private static bool IsRetryableDownloadFailure(Exception ex)
+        => ex is not OperationCanceledException
+           && !(ex is InvalidOperationException { Message: VerificationFailedMessage });
 
     public void Dispose() => _http.Dispose();
 
