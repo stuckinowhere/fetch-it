@@ -123,8 +123,15 @@ public sealed class SingleInstance : IDisposable
         }
     }
 
+    // The updater releases the lock early (so the restarted app can take it) and
+    // Program.Main disposes again on exit; a second call must be a no-op.
+    private int _disposed;
+
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            return;
+
         _cts.Cancel();
         try
         {
