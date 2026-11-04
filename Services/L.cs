@@ -154,6 +154,8 @@ public static class L
         ["Could not check for updates."] = "No se pudo comprobar si hay actualizaciones.",
         ["Could not install yt-dlp or ffmpeg."] = "No se pudo instalar yt-dlp o ffmpeg.",
         ["Could not start the installer."] = "No se pudo iniciar el instalador.",
+        ["Update installed. Close fetch it and open it again."] = "Actualización instalada. Cierra fetch it y vuelve a abrirlo.",
+        ["UPDATE INSTALLED"] = "ACTUALIZACIÓN INSTALADA",
         ["Only public profiles."] = "Solo perfiles públicos.",
         ["Instagram hid the posts. Sign in when asked. Chrome can stay open."] =
             "Instagram ocultó las publicaciones. Inicia sesión cuando se pida. Chrome puede seguir abierto.",
