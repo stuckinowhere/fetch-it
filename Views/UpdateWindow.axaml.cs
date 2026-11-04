@@ -107,14 +107,19 @@ public partial class UpdateWindow : Window
         }
         catch (Exception ex)
         {
-            AppLog.Error("Update install failed", ex);
+            // The files are in place; only the automatic restart failed.
+            var installed = ex.Message == UpdateInstaller.RestartManuallyMessage;
+            if (installed)
+                AppLog.Warn(ex.Message);
+            else
+                AppLog.Error("Update install failed", ex);
             _busy = false;
             _closeOnly = true;
             PrimaryButton.IsEnabled = true;
             LaterButton.IsEnabled = true;
             DownloadProgress.IsVisible = false;
-            Eyebrow.Text = L.T("UPDATE FAILED");
-            if (this.TryFindResource("DangerBrush", out var brush) && brush is IBrush colored)
+            Eyebrow.Text = L.T(installed ? "UPDATE INSTALLED" : "UPDATE FAILED");
+            if (this.TryFindResource(installed ? "SuccessBrush" : "DangerBrush", out var brush) && brush is IBrush colored)
                 Eyebrow.Foreground = colored;
             Body.Text = Short(L.Translate(ex.Message));
             PrimaryLabel.Text = L.Ok;
