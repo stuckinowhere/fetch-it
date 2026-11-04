@@ -53,6 +53,18 @@ public class LocalizationTests
     }
 
     [Fact]
+    public void Account_status_reads_in_both_languages()
+    {
+        L.Language = "en";
+        Assert.Equal("Not signed in", FetchIt.Views.AccountWindow.Describe(new SessionStatus(SessionState.None, null)));
+        Assert.Equal("Signed in", FetchIt.Views.AccountWindow.Describe(new SessionStatus(SessionState.Active, null)));
+        using var _ = new Spanish();
+        Assert.Equal("Sin sesión", FetchIt.Views.AccountWindow.Describe(new SessionStatus(SessionState.None, null)));
+        Assert.Equal("La sesión caducó. Inicia sesión otra vez.", FetchIt.Views.AccountWindow.Describe(new SessionStatus(SessionState.Expired, DateTimeOffset.UnixEpoch)));
+        Assert.StartsWith("Sesión iniciada hasta el ", FetchIt.Views.AccountWindow.Describe(new SessionStatus(SessionState.Active, DateTimeOffset.UnixEpoch.AddYears(60))));
+    }
+
+    [Fact]
     public void Engine_strings_stay_english_in_code()
     {
         using var _ = new Spanish();

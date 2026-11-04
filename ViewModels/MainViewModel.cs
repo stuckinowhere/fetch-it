@@ -18,6 +18,7 @@ public interface IUiHost
     Task<DuplicateChoice> AskIfAlreadySavedAsync(string folderLabel, IReadOnlyList<string> names);
     Task<string?> AskQualityAsync(string title, IReadOnlyList<MediaQuality> qualities);
     Task<bool> AskPasteLinkAsync(string link);
+    Task ShowAccountAsync();
 }
 
 public partial class MainViewModel : ObservableObject
@@ -41,6 +42,7 @@ public partial class MainViewModel : ObservableObject
         _fetcher = fetcher;
         FolderPath = FolderStore.Load();
         IsDark = ThemeStore.IsDark();
+        RefreshAccount();
     }
 
     public IUiHost? Ui { get; set; }
@@ -83,6 +85,7 @@ public partial class MainViewModel : ObservableObject
     private bool _statusIsError;
 
     [ObservableProperty] private bool _isDark;
+    [ObservableProperty] private bool _isSignedIn;
     [ObservableProperty] private double _tileWidth = 320;
     [ObservableProperty] private double _tileImageHeight = 180;
 
@@ -130,6 +133,18 @@ public partial class MainViewModel : ObservableObject
             AppLog.Warn($"Open folder failed: {ex.Message}");
         }
     }
+
+    [RelayCommand]
+    private async Task ShowAccountAsync()
+    {
+        if (Ui is null)
+            return;
+        await Ui.ShowAccountAsync();
+        RefreshAccount();
+    }
+
+    private void RefreshAccount()
+        => IsSignedIn = SessionCookies.GetStatus().State == SessionState.Active;
 
     public Task CheckUpdatesOnLaunchAsync() => CheckForUpdatesCoreAsync(notifyWhenCurrent: false);
 
@@ -214,9 +229,6 @@ public partial class MainViewModel : ObservableObject
         var cts = new CancellationTokenSource();
         _probeCts = cts;
         previous?.Dispose();
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token);
-        timeoutCts.CancelAfter(TimeSpan.FromSeconds(ProbeSeconds(Url)));
-        var token = timeoutCts.Token;
 
         IsProbing = true;
         HideStatus();
@@ -224,7 +236,7 @@ public partial class MainViewModel : ObservableObject
         AppLog.Info($"fetch {AppLog.SafeUrl(Url)}");
         try
         {
-            var probe = await ProbeWithSessionAsync(Url.Trim(), token);
+            var probe = await ProbeWithSessionAsync(Url.Trim(), cts.Token);
             if (version != _probeVersion)
                 return;
             ApplyProbe(probe);
@@ -389,17 +401,30 @@ public partial class MainViewModel : ObservableObject
 
     private async Task<MediaProbe> ProbeWithSessionAsync(string url, CancellationToken token)
     {
+        // The time limit covers reading the link only: signing in (with a 2FA
+        // code, say) can take as long as the user needs.
         await EnsureInstagramSessionAsync(url, token);
         try
         {
-            return await _fetcher.ProbeAsync(url, UiProgress(), token);
+            return await ProbeTimedAsync(url, token);
         }
-        catch (InvalidOperationException ex) when (ex.Message == MediaRouter.InstagramSessionMessage)
+        catch (InvalidOperationException ex) when (
+            ex.Message == MediaRouter.InstagramSessionMessage
+            && MediaRouter.TryParseHttpUrl(url, out var uri)
+            && MediaRouter.IsInstagram(uri))
         {
-            SessionCookies.Clear();
+            SessionCookies.SignOut();
+            RefreshAccount();
             await EnsureInstagramSessionAsync(url, token, forceSignIn: true);
-            return await _fetcher.ProbeAsync(url, UiProgress(), token);
+            return await ProbeTimedAsync(url, token);
         }
+    }
+
+    private async Task<MediaProbe> ProbeTimedAsync(string url, CancellationToken token)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+        timeout.CancelAfter(TimeSpan.FromSeconds(ProbeSeconds(url)));
+        return await _fetcher.ProbeAsync(url, UiProgress(), timeout.Token);
     }
 
     private async Task EnsureInstagramSessionAsync(
@@ -416,6 +441,7 @@ public partial class MainViewModel : ObservableObject
 
         ShowWork("Sign in to Instagram…", indeterminate: true);
         var signedIn = await Ui.SignInInstagramAsync(token);
+        RefreshAccount();
         if (!signedIn)
             throw new InvalidOperationException(MediaRouter.InstagramSessionMessage);
     }

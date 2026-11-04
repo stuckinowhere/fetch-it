@@ -107,6 +107,8 @@ public class MainViewModelTests
         public Task<string?> ReadClipboardAsync() => Task.FromResult(Clipboard);
         public Task<bool> SignInInstagramAsync(CancellationToken cancellationToken) => Task.FromResult(false);
         public Task ShowUpdateAsync(UpdateCheckResult result) => Task.CompletedTask;
+        public int AccountOpens { get; private set; }
+        public Task ShowAccountAsync() { AccountOpens++; return Task.CompletedTask; }
         public Task ShowAlertAsync(string heading, string message, bool isError)
         {
             Alerts.Add((heading, message, isError));
@@ -155,6 +157,15 @@ public class MainViewModelTests
         await vm.PasteIfEmptyAsync();
         Assert.Equal(1, ui.PasteAsks);
         Assert.Equal("", vm.Url);
+    }
+
+    [Fact]
+    public async Task Account_command_opens_the_account_window()
+    {
+        var ui = new FakeUi();
+        var vm = new MainViewModel { Ui = ui };
+        await vm.ShowAccountCommand.ExecuteAsync(null);
+        Assert.Equal(1, ui.AccountOpens);
     }
 
     [Fact]

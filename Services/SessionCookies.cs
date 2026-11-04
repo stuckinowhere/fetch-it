@@ -11,6 +11,15 @@ public readonly record struct CookieRow(
     string Name,
     string Value);
 
+public enum SessionState
+{
+    None,
+    Active,
+    Expired
+}
+
+public readonly record struct SessionStatus(SessionState State, DateTimeOffset? Expires);
+
 public static class NetscapeCookies
 {
     public static string ToText(IEnumerable<CookieRow> cookies)
@@ -84,12 +93,47 @@ public static class SessionCookies
         {
             MigrateLegacy();
             var text = ReadPlaintext();
-            return text is not null && LooksLikeSession(text);
+            return Evaluate(text, DateTimeOffset.UtcNow).State == SessionState.Active;
         }
         catch
         {
             return false;
         }
+    }
+
+    /// <summary>The saved session as shown in the Account window.</summary>
+    public static SessionStatus GetStatus()
+    {
+        try
+        {
+            MigrateLegacy();
+            return Evaluate(ReadPlaintext(), DateTimeOffset.UtcNow);
+        }
+        catch
+        {
+            return new SessionStatus(SessionState.None, null);
+        }
+    }
+
+    internal static SessionStatus Evaluate(string? text, DateTimeOffset now)
+    {
+        if (text is null || !LooksLikeSession(text))
+            return new SessionStatus(SessionState.None, null);
+
+        foreach (var line in text.Split('\n'))
+        {
+            var fields = line.TrimEnd('\r').Split('\t');
+            if (fields.Length != 7
+                || !fields[5].Equals("sessionid", StringComparison.Ordinal)
+                || !long.TryParse(fields[4], out var unix))
+                continue;
+            if (unix <= 0)
+                return new SessionStatus(SessionState.Active, null);
+            var expires = DateTimeOffset.FromUnixTimeSeconds(unix);
+            return new SessionStatus(expires > now ? SessionState.Active : SessionState.Expired, expires);
+        }
+
+        return new SessionStatus(SessionState.None, null);
     }
 
     internal static bool LooksLikeSession(string text)
@@ -112,6 +156,28 @@ public static class SessionCookies
     {
         TryDelete(FilePath);
         TryDelete(LegacyFilePath);
+    }
+
+    /// <summary>Forget the saved session and the sign-in window's browser profile.</summary>
+    public static void SignOut()
+    {
+        Clear();
+        ClearWebProfile(WebViewUserData);
+    }
+
+    internal static void ClearWebProfile(string folder)
+    {
+        try
+        {
+            if (Directory.Exists(folder))
+                Directory.Delete(folder, recursive: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // WebView2 can hold files briefly after its window closes. The next
+            // sign-in window deletes its cookies before it loads anything.
+            AppLog.Warn($"Could not remove the sign-in profile: {ex.Message}");
+        }
     }
 
     public static ToolCookieSession BindForTool(bool socialHost)

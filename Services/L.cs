@@ -79,6 +79,12 @@ public static class L
     public static string Skip => T("Skip");
     public static string Quality => T("QUALITY");
     public static string InstagramSignIn => T("Sign in to Instagram. Chrome can stay open.");
+    public static string AccountTip => T("Account");
+    public static string Accounts => T("ACCOUNTS");
+    public static string SignIn => T("Sign in");
+    public static string SignOut => T("Sign out");
+    public static string Close => T("Close");
+    public static string AccountNote => T("Instagram only shows posts after you sign in. You stay signed in here. Your password is not saved.");
     public static string Later => T("Later");
     public static string Install => T("Install");
     public static string Open => T("Open");
@@ -108,6 +114,17 @@ public static class L
         ["QUALITY"] = "CALIDAD",
         ["Pick a quality for “{0}”."] = "Elige la calidad para “{0}”.",
         ["Sign in to Instagram. Chrome can stay open."] = "Inicia sesión en Instagram. Chrome puede seguir abierto.",
+        ["Account"] = "Cuenta",
+        ["ACCOUNTS"] = "CUENTAS",
+        ["Sign in"] = "Iniciar sesión",
+        ["Sign out"] = "Cerrar sesión",
+        ["Close"] = "Cerrar",
+        ["Signed in"] = "Sesión iniciada",
+        ["Signed in until {0}"] = "Sesión iniciada hasta el {0}",
+        ["Not signed in"] = "Sin sesión",
+        ["Session expired. Sign in again."] = "La sesión caducó. Inicia sesión otra vez.",
+        ["Instagram only shows posts after you sign in. You stay signed in here. Your password is not saved."] =
+            "Instagram solo muestra publicaciones con la sesión iniciada. Aquí se queda iniciada. Tu contraseña no se guarda.",
         ["Later"] = "Más tarde",
         ["Install"] = "Instalar",
         ["Open"] = "Abrir",

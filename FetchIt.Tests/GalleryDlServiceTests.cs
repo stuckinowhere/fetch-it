@@ -16,6 +16,21 @@ public class GalleryDlServiceTests
     public void LooksLikeSavedFile_ignores_log_and_error_lines(string line, bool saved)
         => Assert.Equal(saved, GalleryDlService.LooksLikeSavedFile(line));
 
+    [Theory]
+    [InlineData(true, true, "HTTP redirect to login page (https://www.instagram.com/accounts/login/)", true)]
+    [InlineData(true, true, "HttpError: 401 Unauthorized", true)]
+    [InlineData(true, true, "Redirected to Challenge page", true)]
+    [InlineData(true, true, "NotFoundError: post not found", false)]
+    [InlineData(true, true, "", false)]
+    [InlineData(true, false, "NotFoundError: post not found", true)]
+    [InlineData(false, true, "HTTP redirect to login page", false)]
+    public void Saved_session_survives_failures_that_are_not_about_login(
+        bool social, bool hasSavedSession, string toolOutput, bool asksToSignIn)
+    {
+        var expected = asksToSignIn ? MediaRouter.InstagramSessionMessage : "Could not read that link.";
+        Assert.Equal(expected, GalleryDlService.ReadError(social, hasSavedSession, toolOutput));
+    }
+
     [Fact]
     public void EnsureToolSucceeded_exit_zero_is_ok()
         => GalleryDlService.EnsureToolSucceeded(0, done: 0, fileCount: 3);

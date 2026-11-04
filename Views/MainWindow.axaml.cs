@@ -65,6 +65,8 @@ public partial class MainWindow : Window, IUiHost
         return result && SessionCookies.HasUsableFile();
     }
 
+    public Task ShowAccountAsync() => new AccountWindow().ShowDialog(this);
+
     public async Task ShowUpdateAsync(UpdateCheckResult result)
     {
         var window = new UpdateWindow(result);

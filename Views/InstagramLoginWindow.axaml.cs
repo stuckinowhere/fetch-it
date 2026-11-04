@@ -29,6 +29,9 @@ public partial class InstagramLoginWindow : Window
                 return;
             }
 
+            // This window only opens to sign in fresh. A stale cookie left in the
+            // profile would look like a new session and close it straight away.
+            core.CookieManager.DeleteAllCookies();
             core.Navigate("https://www.instagram.com/accounts/login/");
             while (!_cts.IsCancellationRequested)
             {
