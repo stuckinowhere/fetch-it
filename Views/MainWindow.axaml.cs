@@ -50,20 +50,8 @@ public partial class MainWindow : Window, IUiHost
         return clipboard is null ? null : await clipboard.TryGetTextAsync();
     }
 
-    public async Task<bool> SignInInstagramAsync(CancellationToken cancellationToken)
-    {
-        var window = new InstagramLoginWindow();
-        await using var close = cancellationToken.Register(() =>
-        {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-            {
-                if (window.IsVisible)
-                    window.Close(false);
-            });
-        });
-        var result = await window.ShowDialog<bool>(this);
-        return result && SessionCookies.HasUsableFile();
-    }
+    public Task<bool> SignInInstagramAsync(CancellationToken cancellationToken)
+        => InstagramSignInFlow.RunAsync(this, cancellationToken);
 
     public Task ShowAccountAsync() => new AccountWindow().ShowDialog(this);
 
