@@ -67,13 +67,6 @@ public partial class MainWindow : Window, IUiHost
         await window.ShowDialog(this);
     }
 
-    public async Task<DuplicateChoice> AskIfAlreadySavedAsync(string folderLabel, IReadOnlyList<string> names)
-    {
-        var window = new DuplicateWindow(folderLabel, names);
-        var choice = await window.ShowDialog<DuplicateChoice>(this);
-        return choice;
-    }
-
     public async Task<string?> AskQualityAsync(string title, IReadOnlyList<MediaQuality> qualities)
     {
         var window = new QualityWindow(title, qualities);

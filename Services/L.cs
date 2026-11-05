@@ -129,9 +129,6 @@ public static class L
         ["Later"] = "Más tarde",
         ["Install"] = "Instalar",
         ["Open"] = "Abrir",
-        ["This file is already in {0}:"] = "Este archivo ya está en {0}:",
-        ["These {0} files are already in {1}:"] = "Estos {0} archivos ya están en {1}:",
-        ["Skip, keep both copies, or replace them?"] = "¿Omitir, conservar ambas copias o reemplazarlas?",
         ["+1 more"] = "+1 más",
         ["UPDATE AVAILABLE"] = "ACTUALIZACIÓN DISPONIBLE",
         ["UPDATE CHECK"] = "ACTUALIZACIONES",
@@ -161,7 +158,6 @@ public static class L
         ["Merging…"] = "Uniendo…",
         ["Finishing…"] = "Terminando…",
         ["Saved to {0}."] = "Guardado en {0}.",
-        ["Already in {0}."] = "Ya está en {0}.",
 
         // Engine messages (English stays the in-code value)
         ["Not a link."] = "No es un enlace.",

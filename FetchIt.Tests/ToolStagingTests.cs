@@ -97,6 +97,18 @@ public class ToolStagingTests : IDisposable
     }
 
     [Fact]
+    public void Overwrite_replaces_saved_files_without_a_copy()
+    {
+        File.WriteAllText(Path.Combine(_dest, "a.jpg"), "old");
+        using var staging = Stage("a.jpg");
+
+        Assert.Equal(1, staging.MoveTo(_dest, DuplicateChoice.Overwrite));
+
+        Assert.NotEqual("old", File.ReadAllText(Path.Combine(_dest, "a.jpg")));
+        Assert.Single(Directory.GetFiles(_dest));
+    }
+
+    [Fact]
     public void Skip_leaves_files_that_are_already_saved()
     {
         File.WriteAllText(Path.Combine(_dest, "a.jpg"), "old");
