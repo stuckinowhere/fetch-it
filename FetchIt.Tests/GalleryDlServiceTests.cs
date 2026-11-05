@@ -51,4 +51,19 @@ public class GalleryDlServiceTests
         Assert.Equal("Saved 2 of 5 files.", ex.Message);
         Assert.True(MediaFetcher.IsPartialSaveMessage(ex.Message));
     }
+
+    [Fact]
+    public void EnsureToolSucceeded_does_not_invent_a_total_for_open_ended_downloads()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => GalleryDlService.EnsureToolSucceeded(1, done: 64, fileCount: 50, openEnded: true));
+        Assert.Equal("Saved 64 files, but some could not be read.", ex.Message);
+    }
+
+    [Fact]
+    public void Whole_profile_asks_for_every_media_tab_and_not_metadata()
+    {
+        var tabs = GalleryDlService.InstagramEverything.Split(',');
+        Assert.Equal(["avatar", "highlights", "posts", "reels", "stories", "tagged"], tabs.Order());
+    }
 }

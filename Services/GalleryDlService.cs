@@ -40,6 +40,7 @@ public sealed class GalleryDlService
             throw new InvalidOperationException(ShortError(url, text));
         }
         var probe = GalleryDlParser.Parse(text);
+        probe.MayHaveMore = probe.Items.Count >= ProbeFileLimit;
         if (probe.FileCount > 0 && probe.Items.Count > 0)
             return probe;
         throw new InvalidOperationException(ShortError(url, text));
@@ -51,21 +52,27 @@ public sealed class GalleryDlService
         MediaProbe probe,
         DuplicateChoice duplicate,
         IProgress<FetchProgress> progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool wholeProfile = false)
     {
         var dest = Path.GetFullPath(folder);
         if (!FolderStore.CanWrite(dest))
             throw new InvalidOperationException("Windows blocked that folder. Pick another save folder.");
 
+        // The preview only holds posts, so a whole profile must go through the tool.
         var jobs = PlanDirectFiles(dest, probe, duplicate);
-        if (CanDownloadDirect(probe, jobs))
+        if (!wholeProfile && CanDownloadDirect(probe, jobs))
         {
             await DownloadDirectAsync(jobs, progress, cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        await DownloadWithToolAsync(url, dest, probe.FileCount, duplicate, progress, cancellationToken).ConfigureAwait(false);
+        await DownloadWithToolAsync(url, dest, probe, duplicate, wholeProfile, progress, cancellationToken).ConfigureAwait(false);
     }
+
+    // Everything a signed-in account can see on a profile, as files. No "info":
+    // that is metadata, not media.
+    internal const string InstagramEverything = "avatar,posts,reels,stories,highlights,tagged";
 
     internal const int DirectParallel = 4;
 
@@ -175,8 +182,9 @@ public sealed class GalleryDlService
     private async Task DownloadWithToolAsync(
         string url,
         string dest,
-        int fileCount,
+        MediaProbe probe,
         DuplicateChoice duplicate,
+        bool wholeProfile,
         IProgress<FetchProgress> progress,
         CancellationToken cancellationToken)
     {
@@ -188,6 +196,13 @@ public sealed class GalleryDlService
         if (string.IsNullOrEmpty(tools.GalleryDl))
             throw new InvalidOperationException(ShortError(url, ""));
 
+        var fileCount = probe.FileCount;
+        var openEnded = wholeProfile || probe.MayHaveMore;
+
+        // Instagram names are unique ids, so a repeat run only adds what is new
+        // (today's stories, say) instead of a _2 copy of every photo.
+        var moveAs = wholeProfile ? DuplicateChoice.Skip : duplicate;
+
         var done = 0;
         var social = MediaRouter.TryParseHttpUrl(url, out var uri) && MediaRouter.IsSocialPostHost(uri);
         using var cookies = SessionCookies.BindForTool(social);
@@ -198,6 +213,8 @@ public sealed class GalleryDlService
             "--no-mtime",
             "-o", "path-extended=false"
         };
+        if (wholeProfile)
+            args.AddRange(["-o", "extractor.instagram.include=" + InstagramEverything]);
         AddHostOptions(args, url);
         args.AddRange(cookies.Arguments);
         args.Add(url);
@@ -210,6 +227,13 @@ public sealed class GalleryDlService
                 if (LooksLikeSavedFile(line))
                 {
                     done++;
+                    if (openEnded)
+                    {
+                        // The total is unknown, so no percentage to invent.
+                        progress.Report(new FetchProgress { Status = $"{done} files" });
+                        return;
+                    }
+
                     var total = Math.Max(fileCount, done);
                     progress.Report(new FetchProgress
                     {
@@ -222,21 +246,23 @@ public sealed class GalleryDlService
         }
         catch (OperationCanceledException)
         {
-            staging.MoveTo(dest, duplicate); // Keep what finished before Stop.
+            staging.MoveTo(dest, moveAs); // Keep what finished before Stop.
             throw;
         }
 
         progress.Report(new FetchProgress { Status = "Saving…" });
-        done = Math.Max(done, staging.MoveTo(dest, duplicate));
-        EnsureToolSucceeded(code, done, fileCount);
+        done = Math.Max(done, staging.MoveTo(dest, moveAs));
+        EnsureToolSucceeded(code, done, fileCount, openEnded);
     }
 
-    internal static void EnsureToolSucceeded(int code, int done, int fileCount)
+    internal static void EnsureToolSucceeded(int code, int done, int fileCount, bool openEnded = false)
     {
         if (code == 0)
             return;
         if (done <= 0)
             throw new InvalidOperationException("Could not save those files.");
+        if (openEnded)
+            throw new InvalidOperationException($"Saved {done} files, but some could not be read.");
         var total = Math.Max(fileCount, done);
         throw new InvalidOperationException($"Saved {done} of {total} files.");
     }

@@ -198,6 +198,7 @@ public static class L
         ["{0} videos"] = "{0} vídeos",
         ["1 image"] = "1 imagen",
         ["{0} images"] = "{0} imágenes",
+        ["preview only, Download gets everything"] = "solo vista previa, Descargar baja todo",
         ["IMAGE"] = "IMAGEN",
         ["VIDEO"] = "VÍDEO",
         ["less than 0.1 MB left"] = "menos de 0.1 MB restantes"
@@ -206,6 +207,8 @@ public static class L
     private static readonly (Regex Pattern, string Replacement)[] Patterns =
     [
         (new Regex(@"^Saved (\d+) of (\d+) files\.$", RegexOptions.CultureInvariant), "Guardados $1 de $2 archivos."),
+        (new Regex(@"^Saved (\d+) files, but some could not be read\.$", RegexOptions.CultureInvariant), "Guardados $1 archivos, pero algunos no se pudieron leer."),
+        (new Regex(@"^(\d+) files$", RegexOptions.CultureInvariant), "$1 archivos"),
         (new Regex(@"^Saved (\d+) files \((\d+) as previews\)\.", RegexOptions.CultureInvariant), "Guardados $1 archivos ($2 como vistas previas)."),
         (new Regex(@" MB left$", RegexOptions.CultureInvariant), " MB restantes"),
         (new Regex(@"^Saved to (.+)\.$", RegexOptions.CultureInvariant), "Guardado en $1."),
