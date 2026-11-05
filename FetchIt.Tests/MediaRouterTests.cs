@@ -38,6 +38,21 @@ public class MediaRouterTests
         Assert.Equal(Enum.Parse<EngineKind>(engine), MediaRouter.Prefer(uri));
     }
 
+    [Theory]
+    [InlineData("https://www.instagram.com/_namaskar_/", "https://www.instagram.com/_namaskar_/")]
+    [InlineData("https://instagram.com/_namaskar_", "https://www.instagram.com/_namaskar_/")]
+    [InlineData("https://www.instagram.com/_namaskar_/?hl=es", "https://www.instagram.com/_namaskar_/")]
+    [InlineData("https://www.instagram.com/stories/_namaskar_/", "https://www.instagram.com/_namaskar_/")]
+    [InlineData("https://www.instagram.com/stories/_namaskar_/3512345/", "https://www.instagram.com/_namaskar_/")]
+    [InlineData("https://www.instagram.com/p/abc/", null)]
+    [InlineData("https://www.instagram.com/reel/abc/", null)]
+    [InlineData("https://www.instagram.com/stories/highlights/1/", null)]
+    [InlineData("https://www.instagram.com/explore/", null)]
+    [InlineData("https://www.instagram.com/reels/", null)]
+    [InlineData("https://x.com/someone", null)]
+    public void Only_profile_links_mean_the_whole_profile(string url, string? expected)
+        => Assert.Equal(expected, MediaRouter.InstagramProfileUrl(url));
+
     [Fact]
     public void Instagram_profile_url_reads_posts()
     {

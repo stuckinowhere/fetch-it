@@ -75,6 +75,31 @@ public static class MediaRouter
         => text.Contains("This account is private", StringComparison.OrdinalIgnoreCase)
            || text.Contains("private account", StringComparison.OrdinalIgnoreCase);
 
+    private static readonly HashSet<string> InstagramPages = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "accounts", "direct", "explore", "p", "reel", "reels", "stories", "tv"
+    };
+
+    /// <summary>
+    /// The profile root for a link to an Instagram user or their stories, else
+    /// null. Links to one post stay single; only a profile means "everything".
+    /// </summary>
+    public static string? InstagramProfileUrl(string url)
+    {
+        if (!TryParseHttpUrl(url, out var uri) || !IsInstagram(uri))
+            return null;
+
+        var parts = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var user = parts.Length switch
+        {
+            1 when !InstagramPages.Contains(parts[0]) => parts[0],
+            >= 2 when parts[0].Equals("stories", StringComparison.OrdinalIgnoreCase)
+                      && !parts[1].Equals("highlights", StringComparison.OrdinalIgnoreCase) => parts[1],
+            _ => null
+        };
+        return user is null ? null : $"https://www.instagram.com/{user}/";
+    }
+
     public static bool IsSocialPostHost(Uri uri)
     {
         var host = NormalizedHost(uri);

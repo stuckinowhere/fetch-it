@@ -40,6 +40,8 @@ public sealed class MediaFetcher
         var first = MediaRouter.Prefer(uri);
         try
         {
+            if (MediaRouter.InstagramProfileUrl(url) is { } profile)
+                return await _gallery.ProbeAsync(profile, progress, cancellationToken, wholeProfile: true).ConfigureAwait(false);
             return await RunProbe(first, publicUrl, progress, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
@@ -86,7 +88,11 @@ public sealed class MediaFetcher
             return null;
         }
         if (probe.Engine == EngineKind.GalleryDl)
-            await _gallery.DownloadAsync(publicUrl, folder, probe, duplicate, progress, cancellationToken).ConfigureAwait(false);
+        {
+            var profile = MediaRouter.InstagramProfileUrl(url);
+            await _gallery.DownloadAsync(profile ?? publicUrl, folder, probe, duplicate, progress, cancellationToken, wholeProfile: profile is not null)
+                .ConfigureAwait(false);
+        }
         else
             await _yt.DownloadAsync(publicUrl, folder, probe.Title, probe.FileCount, duplicate, progress, cancellationToken).ConfigureAwait(false);
         return null;

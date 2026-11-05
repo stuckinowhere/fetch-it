@@ -150,6 +150,9 @@ public static class L
         // Status line
         ["Reading link…"] = "Leyendo enlace…",
         ["Reading public profile…"] = "Leyendo perfil público…",
+        ["Reading the whole profile…"] = "Leyendo todo el perfil…",
+        ["about {0} s left"] = "quedan unos {0} s",
+        ["about {0} min left"] = "quedan unos {0} min",
         ["Saving…"] = "Guardando…",
         ["Getting tools…"] = "Preparando herramientas…",
         ["tools"] = "herramientas",
@@ -206,6 +209,8 @@ public static class L
     private static readonly (Regex Pattern, string Replacement)[] Patterns =
     [
         (new Regex(@"^Saved (\d+) of (\d+) files\.$", RegexOptions.CultureInvariant), "Guardados $1 de $2 archivos."),
+        (new Regex(@"^Reading the whole profile… (\d+:\d\d)$", RegexOptions.CultureInvariant), "Leyendo todo el perfil… $1"),
+        (new Regex(@"^Reading link… (\d+:\d\d)$", RegexOptions.CultureInvariant), "Leyendo enlace… $1"),
         (new Regex(@"^Saved (\d+) files \((\d+) as previews\)\.", RegexOptions.CultureInvariant), "Guardados $1 archivos ($2 como vistas previas)."),
         (new Regex(@" MB left$", RegexOptions.CultureInvariant), " MB restantes"),
         (new Regex(@"^Saved to (.+)\.$", RegexOptions.CultureInvariant), "Guardado en $1."),

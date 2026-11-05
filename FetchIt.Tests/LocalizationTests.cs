@@ -53,6 +53,14 @@ public class LocalizationTests
     }
 
     [Fact]
+    public void Live_status_reads_in_spanish()
+    {
+        using var _ = new Spanish();
+        Assert.Equal("Leyendo todo el perfil… 0:42", L.Translate("Reading the whole profile… 0:42"));
+        Assert.Equal("quedan unos 3 min", L.Format("about {0} min left", 3));
+    }
+
+    [Fact]
     public void Account_status_reads_in_both_languages()
     {
         L.Language = "en";

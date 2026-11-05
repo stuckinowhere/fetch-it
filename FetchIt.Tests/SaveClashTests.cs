@@ -105,20 +105,21 @@ public class SaveClashTests
     }
 
     [Fact]
-    public void Direct_download_is_skipped_when_probe_hit_the_file_cap()
+    public void Direct_download_has_no_file_limit_and_needs_a_link_for_every_item()
     {
         var dest = Path.Combine(Path.GetTempPath(), "fetchit-cap-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dest);
         try
         {
-            var full = GalleryItems(GalleryDlService.ProbeFileLimit);
-            var jobs = GalleryDlService.PlanDirectFiles(dest, full, DuplicateChoice.Overwrite);
-            Assert.Equal(GalleryDlService.ProbeFileLimit, jobs.Count);
-            Assert.False(GalleryDlService.CanDownloadDirect(full, jobs));
+            var many = GalleryItems(1200);
+            Assert.True(GalleryDlService.CanDownloadDirect(many));
+            Assert.Equal(1200, GalleryDlService.PlanDirectFiles(dest, many, DuplicateChoice.Overwrite).Count);
 
-            var under = GalleryItems(GalleryDlService.ProbeFileLimit - 1);
-            var underJobs = GalleryDlService.PlanDirectFiles(dest, under, DuplicateChoice.Overwrite);
-            Assert.True(GalleryDlService.CanDownloadDirect(under, underJobs));
+            Assert.False(GalleryDlService.CanDownloadDirect(new MediaProbe()));
+            Assert.False(GalleryDlService.CanDownloadDirect(new MediaProbe
+            {
+                Items = [new MediaItem { Kind = MediaKind.Image }]
+            }));
         }
         finally
         {
@@ -148,7 +149,7 @@ public class SaveClashTests
             Assert.Equal(2, jobs.Count);
             Assert.EndsWith("mix_1.jpg", jobs[0].Path, StringComparison.OrdinalIgnoreCase);
             Assert.EndsWith("mix_3.jpg", jobs[1].Path, StringComparison.OrdinalIgnoreCase);
-            Assert.False(GalleryDlService.CanDownloadDirect(probe, jobs));
+            Assert.False(GalleryDlService.CanDownloadDirect(probe));
         }
         finally
         {
@@ -198,6 +199,63 @@ public class SaveClashTests
                 })
                 .ToList()
         };
+
+    [Fact]
+    public void Tool_posts_are_unique_and_skip_saved_videos()
+    {
+        var dest = Path.Combine(Path.GetTempPath(), "fetchit-posts-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dest);
+        try
+        {
+            File.WriteAllText(Path.Combine(dest, "old.mp4"), "x");
+            var probe = new MediaProbe
+            {
+                Items =
+                [
+                    new MediaItem { Kind = MediaKind.Video, SaveName = "old.mp4", ToolUrl = "https://www.instagram.com/p/old/" },
+                    new MediaItem { Kind = MediaKind.Video, SaveName = "a.mp4", ToolUrl = "https://www.instagram.com/p/new/" },
+                    new MediaItem { Kind = MediaKind.Video, SaveName = "b.mp4", ToolUrl = "https://www.instagram.com/p/new/" },
+                    new MediaItem { Kind = MediaKind.Image, DownloadUrl = "https://cdn.example/c.jpg" }
+                ]
+            };
+
+            Assert.Equal(["https://www.instagram.com/p/new/"], GalleryDlService.ToolPosts(dest, probe, DuplicateChoice.Skip));
+            Assert.Equal(2, GalleryDlService.ToolPosts(dest, probe, DuplicateChoice.KeepBoth).Count);
+        }
+        finally
+        {
+            Directory.Delete(dest, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Skip_plans_only_the_files_not_saved_yet()
+    {
+        var dest = Path.Combine(Path.GetTempPath(), "fetchit-skip-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dest);
+        try
+        {
+            File.WriteAllText(Path.Combine(dest, "old.jpg"), "x");
+            var probe = new MediaProbe
+            {
+                Engine = EngineKind.GalleryDl,
+                ImageCount = 2,
+                Items =
+                [
+                    new MediaItem { Kind = MediaKind.Image, SaveName = "old.jpg", DownloadUrl = "https://cdn.example/old.jpg" },
+                    new MediaItem { Kind = MediaKind.Image, SaveName = "new.jpg", DownloadUrl = "https://cdn.example/new.jpg" }
+                ]
+            };
+
+            var job = Assert.Single(GalleryDlService.PlanDirectFiles(dest, probe, DuplicateChoice.Skip));
+
+            Assert.Equal(Path.Combine(dest, "new.jpg"), job.Path);
+        }
+        finally
+        {
+            Directory.Delete(dest, recursive: true);
+        }
+    }
 
     [Fact]
     public void Duplicate_prompt_names_the_folder_and_files()

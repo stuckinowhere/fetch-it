@@ -51,4 +51,22 @@ public class GalleryDlServiceTests
         Assert.Equal("Saved 2 of 5 files.", ex.Message);
         Assert.True(MediaFetcher.IsPartialSaveMessage(ex.Message));
     }
+
+    [Theory]
+    [InlineData(0, 200, 0L, 0, "0 / 200")]
+    [InlineData(1, 200, 0L, 1, "1 / 200")]
+    [InlineData(100, 200, 0L, 60, "100 / 200  ·  about 1 min left")]
+    [InlineData(100, 200, 0L, 300, "100 / 200  ·  about 5 min left")]
+    [InlineData(190, 200, 0L, 190, "190 / 200  ·  about 10 s left")]
+    [InlineData(200, 200, 0L, 60, "200 / 200")]
+    [InlineData(10, 20, 5242880L, 5, "10 / 20  ·  1.0 MB/s  ·  about 5 s left")]
+    public void BatchStatus_shows_only_what_is_known(int done, int total, long bytes, int seconds, string expected)
+        => Assert.Equal(expected, GalleryDlService.BatchStatus(done, total, bytes, TimeSpan.FromSeconds(seconds)));
+
+    [Fact]
+    public void Whole_profile_asks_for_every_media_tab_and_not_metadata()
+    {
+        var tabs = GalleryDlService.InstagramEverything.Split(',');
+        Assert.Equal(["avatar", "highlights", "posts", "reels", "stories", "tagged"], tabs.Order());
+    }
 }

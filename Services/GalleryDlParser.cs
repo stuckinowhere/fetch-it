@@ -15,7 +15,11 @@ public static class GalleryDlParser
         var parsed = ParseItems(json);
         var title = parsed.Select(item => item.Title).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t)) ?? "post";
         var site = parsed.Select(item => item.Site).FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? "Gallery";
-        var items = parsed.Select(item => item.Media).ToList();
+        // Tabs overlap (a reel is also a post), so one file can be listed twice.
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var items = parsed.Select(item => item.Media)
+            .Where(item => item.SaveName is null || seen.Add(item.SaveName))
+            .ToList();
         var videos = items.Count(item => item.Kind == MediaKind.Video);
         var images = items.Count(item => item.Kind == MediaKind.Image);
 
@@ -132,9 +136,27 @@ public static class GalleryDlParser
             Title = title,
             Duration = ReadDuration(el),
             ThumbnailUrl = ThumbnailFor(el, url, isVideo),
-            DownloadUrl = HttpsOrNull(url)
+            DownloadUrl = HttpsOrNull(url),
+            ToolUrl = url?.StartsWith("ytdl:", StringComparison.OrdinalIgnoreCase) == true ? HttpsOrNull(url[5..]) : null,
+            SaveName = InstagramSaveName(el, ext)
         };
         found.Add((item, title, site));
+    }
+
+    /// <summary>
+    /// Instagram's own file id, so a repeat download recognises what it already
+    /// has. Remote text: anything but a plain name is refused.
+    /// </summary>
+    internal static string? InstagramSaveName(JsonElement el, string? ext)
+    {
+        if (!string.Equals(ReadString(el, "category"), "instagram", StringComparison.OrdinalIgnoreCase))
+            return null;
+        var name = ReadString(el, "filename");
+        if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(ext) || name.Length > 180
+            || !name.All(ch => char.IsAsciiLetterOrDigit(ch) || ch is '_' or '-')
+            || !ext.All(char.IsAsciiLetterOrDigit) || ext.Length > 5)
+            return null;
+        return $"{name}.{ext}";
     }
 
     private static string? ThumbnailFor(JsonElement payload, string? mediaUrl, bool isVideo)

@@ -12,8 +12,13 @@ public sealed partial class PreviewCard : ObservableObject, IDisposable
     private static readonly SemaphoreSlim ImageThrottle = new(6);
     private CancellationTokenSource? _cts = new();
 
-    public PreviewCard(MediaItem item)
+    private readonly int _decodeWidth;
+
+    /// <param name="item">What to show.</param>
+    /// <param name="tile">A small tile in a grid, which may hold thousands.</param>
+    public PreviewCard(MediaItem item, bool tile = false)
     {
+        _decodeWidth = tile ? 320 : 960;
         Title = item.Title;
         Overlay = item.Overlay;
         if (!string.IsNullOrWhiteSpace(item.ThumbnailUrl))
@@ -59,7 +64,7 @@ public sealed partial class PreviewCard : ObservableObject, IDisposable
                     {
                         try
                         {
-                            return Bitmap.DecodeToWidth(ms, 960);
+                            return Bitmap.DecodeToWidth(ms, _decodeWidth);
                         }
                         catch
                         {

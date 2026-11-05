@@ -57,8 +57,6 @@ public partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(CanDownload))]
     [NotifyPropertyChangedFor(nameof(IsSinglePreview))]
     private bool _hasPreview;
-    [ObservableProperty] private bool _hasMore;
-    [ObservableProperty] private string _moreLabel = "";
     [ObservableProperty] private string _folderPath = "";
     [ObservableProperty] private string _folderLabel = L.Downloads;
     [ObservableProperty]
@@ -309,14 +307,18 @@ public partial class MainViewModel : ObservableObject
         var duplicate = DuplicateChoice.KeepBoth;
         if (existing.Count > 0)
         {
-            if (Ui is null)
+            if (AddsOnlyNewFiles(Url))
+                duplicate = DuplicateChoice.Skip;
+            else if (Ui is null)
                 duplicate = DuplicateChoice.KeepBoth;
             else
                 duplicate = await Ui.AskIfAlreadySavedAsync(FolderLabel, existing);
 
+            AppLog.Info($"already saved: {existing.Count} of {probe.FileCount}; choice {duplicate}");
             if (duplicate == DuplicateChoice.Cancel)
                 return;
-            if (duplicate == DuplicateChoice.Skip)
+            // Skip means "keep what I have": download the rest, if there is any.
+            if (duplicate == DuplicateChoice.Skip && existing.Count >= SaveClash.PlannedNames(probe).Count)
             {
                 ShowOk(L.Format("Already in {0}.", FolderLabel));
                 return;
@@ -356,6 +358,9 @@ public partial class MainViewModel : ObservableObject
             IsBusy = false;
         }
     }
+
+    /// <summary>A repeat run of a whole profile adds what is new, with nothing to ask.</summary>
+    internal static bool AddsOnlyNewFiles(string url) => MediaRouter.InstagramProfileUrl(url) is not null;
 
     public async Task PasteIfEmptyAsync()
     {
@@ -493,24 +498,8 @@ public partial class MainViewModel : ObservableObject
         Probe = probe;
         Title = probe.Title;
         Summary = probe.Summary;
-        ReplaceCards(probe.PreviewItems);
+        ReplaceCards(probe.Items);
         HasPreview = PreviewCards.Count > 0;
-        HasMore = probe.ExtraCount > 0;
-        MoreLabel = HasMore ? L.More(probe.ExtraCount) : "";
-        NotifyPreviewLayout();
-    }
-
-    [RelayCommand]
-    private void LoadMore()
-    {
-        if (Probe is null)
-            return;
-        var next = Probe.Items.Skip(PreviewCards.Count).Take(50);
-        foreach (var item in next)
-            PreviewCards.Add(new PreviewCard(item));
-        HasMore = PreviewCards.Count < Probe.Items.Count;
-        var remaining = Probe.Items.Count - PreviewCards.Count;
-        MoreLabel = HasMore ? L.More(remaining) : "";
         NotifyPreviewLayout();
     }
 
@@ -521,18 +510,17 @@ public partial class MainViewModel : ObservableObject
         Summary = "";
         ReplaceCards([]);
         HasPreview = false;
-        HasMore = false;
-        MoreLabel = "";
         NotifyPreviewLayout();
     }
 
-    private void ReplaceCards(IEnumerable<MediaItem> items)
+    private void ReplaceCards(IReadOnlyList<MediaItem> items)
     {
         foreach (var card in PreviewCards)
             card.Dispose();
         PreviewCards.Clear();
+        var tiles = items.Count > 1;
         foreach (var item in items)
-            PreviewCards.Add(new PreviewCard(item));
+            PreviewCards.Add(new PreviewCard(item, tiles));
         NotifyPreviewLayout();
     }
 
@@ -597,6 +585,8 @@ public partial class MainViewModel : ObservableObject
             return 8;
         if (MediaRouter.IsKemono(uri))
             return 60;
+        if (MediaRouter.IsGalleryHost(uri))
+            return (int)GalleryDlService.ReadLimit.TotalSeconds; // Every file is listed.
         return 35;
     }
 
