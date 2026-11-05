@@ -65,6 +65,22 @@ public sealed class MediaFetcher
         }
     }
 
+    /// <summary>
+    /// True when the list has both kinds and the download follows the list. Other
+    /// routes fetch the link again, so leaving videos out of the list would do nothing.
+    /// </summary>
+    internal static bool CanLeaveOutVideos(MediaProbe probe, string url)
+    {
+        if (MediaRouter.TryParseHttpUrl(MediaRouter.CanonicalPublicUrl(url), out var uri)
+            && (MediaRouter.IsKemono(uri) || MediaRouter.IsGofile(uri) || MediaRouter.IsOkRu(uri)))
+            return false;
+
+        return probe.Engine == EngineKind.GalleryDl
+               && probe.ImageCount > 0
+               && probe.VideoCount > 0
+               && GalleryDlService.CanDownloadDirect(probe);
+    }
+
     public async Task<string?> DownloadAsync(
         MediaProbe probe,
         string url,

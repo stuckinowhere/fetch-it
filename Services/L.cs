@@ -78,6 +78,8 @@ public static class L
     public static string AlreadySaved => T("ALREADY SAVED");
     public static string Replace => T("Replace");
     public static string KeepBoth => T("Keep both");
+    public static string PhotosOnly => T("Photos only");
+    public static string PhotosAndVideos => T("Photos and videos");
     public static string Skip => T("Skip");
     public static string Quality => T("QUALITY");
     public static string InstagramSignIn => T("Sign in to Instagram. Chrome can stay open.");
@@ -112,6 +114,9 @@ public static class L
         ["ALREADY SAVED"] = "YA GUARDADO",
         ["Replace"] = "Reemplazar",
         ["Keep both"] = "Conservar ambos",
+        ["Photos only"] = "Solo fotos",
+        ["Photos and videos"] = "Fotos y vídeos",
+        ["{0:N0} photos and {1:N0} videos. What do you want to save?"] = "{0:N0} fotos y {1:N0} vídeos. ¿Qué quieres guardar?",
         ["Skip"] = "Omitir",
         ["QUALITY"] = "CALIDAD",
         ["Pick a quality for “{0}”."] = "Elige la calidad para “{0}”.",

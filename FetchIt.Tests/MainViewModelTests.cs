@@ -114,11 +114,122 @@ public class MainViewModelTests
         public Task<string?> AskQualityAsync(string title, IReadOnlyList<MediaQuality> qualities)
             => Task.FromResult<string?>(qualities.Count > 0 ? qualities[0].Url : null);
 
+        public bool? VideosAnswer { get; set; } = true;
+        public int VideoAsks { get; private set; }
+
+        public Task<bool?> AskIncludeVideosAsync(int images, int videos)
+        {
+            VideoAsks++;
+            return Task.FromResult(VideosAnswer);
+        }
+
         public Task<bool> AskPasteLinkAsync(string link)
         {
             PasteAsks++;
             return Task.FromResult(PasteAnswer);
         }
+    }
+
+    private const string ProfileLink = "https://www.instagram.com/someone/";
+
+    private static MediaProbe Mixed(int images = 1, int videos = 1) => new()
+    {
+        Site = "Instagram",
+        Engine = EngineKind.GalleryDl,
+        ImageCount = images,
+        VideoCount = videos,
+        IsPartial = true,
+        Items =
+        [
+            .. Enumerable.Range(0, images).Select(i => new MediaItem
+            {
+                Kind = MediaKind.Image,
+                DownloadUrl = $"https://cdn.example/{i}.jpg",
+                SaveName = $"{i}.jpg"
+            }),
+            .. Enumerable.Range(0, videos).Select(i => new MediaItem
+            {
+                Kind = MediaKind.Video,
+                ToolUrl = $"https://www.instagram.com/p/{i}/",
+                SaveName = $"{i}.mp4"
+            })
+        ]
+    };
+
+    [Fact]
+    public async Task Photos_only_leaves_out_every_video()
+    {
+        var vm = new MainViewModel { Ui = new FakeUi { VideosAnswer = false } };
+
+        var chosen = await vm.ChooseMediaAsync(Mixed(2, 3), ProfileLink);
+
+        Assert.All(chosen!.Items, item => Assert.Equal(MediaKind.Image, item.Kind));
+        Assert.Equal(2, chosen.Items.Count);
+        Assert.Equal(2, chosen.FileCount);
+        Assert.True(chosen.IsPartial);
+        Assert.Empty(GalleryDlService.ToolPosts(@"C:\none", chosen, DuplicateChoice.Overwrite));
+    }
+
+    [Fact]
+    public async Task Choosing_everything_keeps_the_list()
+    {
+        var probe = Mixed();
+        var vm = new MainViewModel { Ui = new FakeUi { VideosAnswer = true } };
+
+        Assert.Same(probe, await vm.ChooseMediaAsync(probe, ProfileLink));
+    }
+
+    [Fact]
+    public async Task Cancelling_the_question_stops_the_download()
+    {
+        var vm = new MainViewModel { Ui = new FakeUi { VideosAnswer = null } };
+
+        Assert.Null(await vm.ChooseMediaAsync(Mixed(), ProfileLink));
+    }
+
+    [Theory]
+    [InlineData(1, 0)]
+    [InlineData(0, 1)]
+    public async Task One_kind_of_file_asks_nothing(int images, int videos)
+    {
+        var ui = new FakeUi();
+        var vm = new MainViewModel { Ui = ui };
+
+        await vm.ChooseMediaAsync(Mixed(images, videos), ProfileLink);
+
+        Assert.Equal(0, ui.VideoAsks);
+    }
+
+    [Theory]
+    [InlineData("https://gofile.io/d/abc")]
+    [InlineData("https://ok.ru/video/123")]
+    [InlineData("https://kemono.cr/fanbox/user/1")]
+    public async Task Routes_that_ignore_the_list_ask_nothing(string url)
+    {
+        var ui = new FakeUi();
+        var vm = new MainViewModel { Ui = ui };
+
+        await vm.ChooseMediaAsync(Mixed(), url);
+
+        Assert.Equal(0, ui.VideoAsks);
+    }
+
+    [Fact]
+    public async Task A_list_only_the_tool_can_fetch_asks_nothing()
+    {
+        var ui = new FakeUi();
+        var vm = new MainViewModel { Ui = ui };
+        var probe = new MediaProbe
+        {
+            Engine = EngineKind.GalleryDl,
+            ImageCount = 1,
+            VideoCount = 1,
+            Items = [new MediaItem { Kind = MediaKind.Image }, new MediaItem { Kind = MediaKind.Video }]
+        };
+
+        await vm.ChooseMediaAsync(probe, ProfileLink);
+
+        Assert.Equal(0, ui.VideoAsks);
     }
 
     [Fact]

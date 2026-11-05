@@ -112,6 +112,38 @@ public class LargeProfileTests
         Assert.Equal(1800, MainViewModel.ProbeSeconds("https://www.instagram.com/p/abc/"));
     }
 
+    [Theory]
+    [InlineData("https://www.instagram.com/someone/", @"D:\Saved\someone")]
+    [InlineData("https://www.instagram.com/stories/someone/", @"D:\Saved\someone")]
+    [InlineData("https://www.instagram.com/some_one_/?hl=es", @"D:\Saved\some_one_")]
+    [InlineData("https://www.instagram.com/p/abc/", @"D:\Saved")]
+    [InlineData("https://www.youtube.com/watch?v=abc", @"D:\Saved")]
+    public void A_whole_profile_gets_its_own_folder(string url, string expected)
+        => Assert.Equal(expected, MainViewModel.SaveFolderFor(@"D:\Saved", url));
+
+    [Theory]
+    [InlineData("https://www.instagram.com/con/")]
+    [InlineData("https://www.instagram.com/%2e%2e%2fother/")]
+    [InlineData("https://www.instagram.com/..%5cother/")]
+    public void A_strange_profile_name_stays_inside_the_save_folder(string url)
+    {
+        var folder = MainViewModel.SaveFolderFor(@"D:\Saved", url);
+
+        Assert.StartsWith(@"D:\Saved\", Path.GetFullPath(folder));
+    }
+
+    [Fact]
+    public void A_new_profile_folder_holds_no_files_yet()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "fetchit-profile-" + Guid.NewGuid().ToString("N"));
+        var probe = new MediaProbe
+        {
+            Items = [new MediaItem { Kind = MediaKind.Image, SaveName = "a.jpg" }]
+        };
+
+        Assert.Empty(SaveClash.ExistingNames(folder, probe));
+    }
+
     [Fact]
     public void Listing_asks_gallery_dl_for_one_small_line_per_file()
     {

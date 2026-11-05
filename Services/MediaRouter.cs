@@ -85,19 +85,22 @@ public static class MediaRouter
     /// null. Links to one post stay single; only a profile means "everything".
     /// </summary>
     public static string? InstagramProfileUrl(string url)
+        => InstagramProfileName(url) is { } user ? $"https://www.instagram.com/{user}/" : null;
+
+    /// <summary>The user a profile link points at, else null.</summary>
+    public static string? InstagramProfileName(string url)
     {
         if (!TryParseHttpUrl(url, out var uri) || !IsInstagram(uri))
             return null;
 
         var parts = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        var user = parts.Length switch
+        return parts.Length switch
         {
             1 when !InstagramPages.Contains(parts[0]) => parts[0],
             >= 2 when parts[0].Equals("stories", StringComparison.OrdinalIgnoreCase)
                       && !parts[1].Equals("highlights", StringComparison.OrdinalIgnoreCase) => parts[1],
             _ => null
         };
-        return user is null ? null : $"https://www.instagram.com/{user}/";
     }
 
     public static bool IsSocialPostHost(Uri uri)

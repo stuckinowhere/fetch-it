@@ -16,6 +16,7 @@ public interface IUiHost
     Task ShowUpdateAsync(UpdateCheckResult result);
     Task ShowAlertAsync(string heading, string message, bool isError);
     Task<string?> AskQualityAsync(string title, IReadOnlyList<MediaQuality> qualities);
+    Task<bool?> AskIncludeVideosAsync(int images, int videos);
     Task<bool> AskPasteLinkAsync(string link);
     Task ShowAccountAsync();
 }
@@ -85,6 +86,7 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private bool _showSeparate;
     private IReadOnlyList<string> _savedNames = [];
+    private string _savedFolder = "";
 
     [ObservableProperty] private bool _isDark;
     [ObservableProperty] private bool _isSignedIn;
@@ -104,6 +106,7 @@ public partial class MainViewModel : ObservableObject
     partial void OnUrlChanged(string value)
     {
         _probeCts?.Cancel();
+        _savedFolder = "";
         ClearResult();
         HideWork();
         HideStatus();
@@ -121,12 +124,13 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            if (!Directory.Exists(FolderPath))
+            var folder = _savedFolder.Length > 0 ? _savedFolder : FolderPath;
+            if (!Directory.Exists(folder))
                 return;
             Process.Start(new ProcessStartInfo
             {
                 FileName = "explorer.exe",
-                Arguments = $"\"{FolderPath}\"",
+                Arguments = $"\"{folder}\"",
                 UseShellExecute = true
             });
         }
@@ -190,6 +194,7 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnFolderPathChanged(string value)
     {
+        _savedFolder = "";
         FolderLabel = FolderDisplay(value);
         FolderStore.Save(value);
     }
@@ -311,10 +316,23 @@ public partial class MainViewModel : ObservableObject
             }
         }
 
+        try
+        {
+            if (await ChooseMediaAsync(probe, Url) is not { } chosen)
+                return;
+            probe = chosen;
+        }
+        catch (Exception ex)
+        {
+            await FailAsync(Short(ex.Message));
+            return;
+        }
+
         // The same file is replaced, with nothing to ask. A name taken from a title
         // proves nothing, so that file keeps both copies unless the bytes match.
         var duplicate = SaveClash.NamesIdentifyFiles(probe) ? DuplicateChoice.Overwrite : DuplicateChoice.KeepBoth;
-        var existing = SaveClash.ExistingNames(FolderPath, probe);
+        var target = SaveFolderFor(FolderPath, Url);
+        var existing = SaveClash.ExistingNames(target, probe);
         if (existing.Count > 0)
             AppLog.Info($"already saved: {existing.Count} of {probe.FileCount}; choice {duplicate}");
 
@@ -328,13 +346,14 @@ public partial class MainViewModel : ObservableObject
         _fetchCts = cts;
         previous?.Dispose();
         var token = cts.Token;
-        AppLog.Info($"download {AppLog.SafeUrl(Url)} -> {FolderPath}");
+        AppLog.Info($"download {AppLog.SafeUrl(Url)} -> {target}");
 
         try
         {
-            var note = await _fetcher.DownloadAsync(probe, Url.Trim(), FolderPath, UiProgress(), duplicate, token);
+            var note = await _fetcher.DownloadAsync(probe, Url.Trim(), target, UiProgress(), duplicate, token);
             HideWork();
-            ShowOk(note is null ? L.Format("Saved to {0}.", FolderLabel) : L.Translate(note));
+            _savedFolder = target;
+            ShowOk(note is null ? L.Format("Saved to {0}.", FolderDisplay(target)) : L.Translate(note));
             OfferSeparate(probe);
         }
         catch (OperationCanceledException)
@@ -353,10 +372,30 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>Asks about videos when the list has both kinds. Null means the user cancelled.</summary>
+    internal async Task<MediaProbe?> ChooseMediaAsync(MediaProbe probe, string url)
+    {
+        if (Ui is null || !MediaFetcher.CanLeaveOutVideos(probe, url))
+            return probe;
+
+        return await Ui.AskIncludeVideosAsync(probe.ImageCount, probe.VideoCount) switch
+        {
+            true => probe,
+            false => probe.PhotosOnly(),
+            null => null
+        };
+    }
+
+    /// <summary>A whole profile gets its own folder, so it never mixes with other downloads.</summary>
+    internal static string SaveFolderFor(string folder, string url)
+        => MediaRouter.InstagramProfileName(url) is { } user
+            ? Path.Combine(folder, MediaRouter.SanitizeFolderName(user))
+            : folder;
+
     // Only what this download saved: the folder also holds the user's other files.
     private void OfferSeparate(MediaProbe probe)
     {
-        _savedNames = SaveClash.ExistingNames(FolderPath, probe);
+        _savedNames = SaveClash.ExistingNames(_savedFolder, probe);
         ShowSeparate = _savedNames.Count > 1;
     }
 
@@ -377,7 +416,7 @@ public partial class MainViewModel : ObservableObject
         ShowWork("Getting the people detector…", indeterminate: true);
         try
         {
-            var outcome = await PeopleSorter.SeparateAsync(FolderPath, _savedNames, UiProgress(), cts.Token);
+            var outcome = await PeopleSorter.SeparateAsync(_savedFolder, _savedNames, UiProgress(), cts.Token);
             HideWork();
             var message = L.Format("Moved to {0}: {1}.", L.WithoutPeople, outcome.Moved);
             ShowOk(outcome.Unread > 0 ? $"{message} {L.Format("Could not read: {0}.", outcome.Unread)}" : message);
