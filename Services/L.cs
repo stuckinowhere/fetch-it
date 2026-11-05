@@ -117,6 +117,7 @@ public static class L
         ["Account"] = "Cuenta",
         ["ACCOUNTS"] = "CUENTAS",
         ["Sign in"] = "Iniciar sesión",
+        ["Finish signing in in the window that opened."] = "Termina de iniciar sesión en la ventana que se ha abierto.",
         ["Sign out"] = "Cerrar sesión",
         ["Close"] = "Cerrar",
         ["Signed in"] = "Sesión iniciada",

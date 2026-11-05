@@ -54,7 +54,7 @@ If PowerShell blocks scripts: `Set-ExecutionPolicy -Scope Process Bypass`.
 - Folder icon — where files go. Defaults to your Windows Downloads folder (including if you moved it). Remembers the last folder you pick.
 - Theme icon — light or dark.
 - Update icon — check GitHub Releases. On launch the app does this quietly and only prompts when a newer setup exists. **Install** downloads the setup (or the zip for a portable copy), checks it against the release `SHA256SUMS.txt`, runs it, and reopens the app.
-- Account icon — sign in to Instagram or sign out. The session stays saved (encrypted for your Windows user) and is reused until it expires or Instagram rejects it. No password is stored. Instagram also asks you to sign in on the first link if you have not. Chrome can stay open.
+- Account icon — sign in to Instagram or sign out. Sign-in opens a real Chrome window with its own temporary profile, separate from your normal Chrome, which closes by itself once you are in. Without Chrome, a small built-in window is used. The session stays saved (encrypted for your Windows user) and is reused until it expires or Instagram rejects it. No password is stored. Instagram also asks you to sign in on the first link if you have not. Chrome can stay open.
 
 A post with several files is saved in the folder you picked, next to each other.
 

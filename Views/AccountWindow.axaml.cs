@@ -6,11 +6,14 @@ namespace FetchIt.Views;
 
 public partial class AccountWindow : Window
 {
+    private readonly CancellationTokenSource _closing = new();
+
     public AccountWindow()
     {
         InitializeComponent();
         AppIcons.ApplyToWindow(this);
         NativeWindowIcon.Bind(this);
+        Closed += (_, _) => _closing.Cancel(); // Closing here also closes the sign-in Chrome.
         Refresh();
     }
 
@@ -42,7 +45,8 @@ public partial class AccountWindow : Window
             else
             {
                 SessionCookies.Clear();
-                await new InstagramLoginWindow().ShowDialog<bool>(this);
+                Status.Text = L.T("Finish signing in in the window that opened.");
+                await InstagramSignInFlow.RunAsync(this, _closing.Token);
             }
         }
         catch (Exception ex)
@@ -51,8 +55,11 @@ public partial class AccountWindow : Window
         }
         finally
         {
-            Primary.IsEnabled = true;
-            Refresh();
+            if (!_closing.IsCancellationRequested)
+            {
+                Primary.IsEnabled = true;
+                Refresh();
+            }
         }
     }
 

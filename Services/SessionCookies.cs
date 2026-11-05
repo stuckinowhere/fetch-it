@@ -82,6 +82,12 @@ public static class SessionCookies
         "WasdFetchIt",
         "instagram.cookies.txt");
 
+    /// <summary>Throwaway Chrome profiles for sign-in; never the user's own.</summary>
+    public static string ChromeProfile => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "WasdFetchIt",
+        "chrome-profile");
+
     public static string WebViewUserData => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "WasdFetchIt",
@@ -163,6 +169,7 @@ public static class SessionCookies
     {
         Clear();
         ClearWebProfile(WebViewUserData);
+        ClearWebProfile(ChromeProfile);
     }
 
     internal static void ClearWebProfile(string folder)
