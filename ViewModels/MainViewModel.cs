@@ -302,10 +302,12 @@ public partial class MainViewModel : ObservableObject
             }
         }
 
-        // The same name is the same file: a new download replaces it, with nothing to ask.
+        // The same file is replaced, with nothing to ask. A name taken from a title
+        // proves nothing, so that file keeps both copies unless the bytes match.
+        var duplicate = SaveClash.NamesIdentifyFiles(probe) ? DuplicateChoice.Overwrite : DuplicateChoice.KeepBoth;
         var existing = SaveClash.ExistingNames(FolderPath, probe);
         if (existing.Count > 0)
-            AppLog.Info($"already saved: {existing.Count} of {probe.FileCount}; replacing them");
+            AppLog.Info($"already saved: {existing.Count} of {probe.FileCount}; choice {duplicate}");
 
         IsBusy = true;
         HideStatus();
@@ -321,7 +323,7 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            var note = await _fetcher.DownloadAsync(probe, Url.Trim(), FolderPath, UiProgress(), DuplicateChoice.Overwrite, token);
+            var note = await _fetcher.DownloadAsync(probe, Url.Trim(), FolderPath, UiProgress(), duplicate, token);
             HideWork();
             ShowOk(note is null ? L.Format("Saved to {0}.", FolderLabel) : L.Translate(note));
         }

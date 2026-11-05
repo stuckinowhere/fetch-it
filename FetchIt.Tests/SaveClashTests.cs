@@ -257,6 +257,29 @@ public class SaveClashTests
     }
 
     [Fact]
+    public void Only_site_ids_identify_a_file()
+    {
+        var ids = new MediaProbe
+        {
+            Items =
+            [
+                new MediaItem { Kind = MediaKind.Image, SaveName = "123_n.jpg" },
+                new MediaItem { Kind = MediaKind.Video, SaveName = "AQM.mp4" }
+            ]
+        };
+        var titles = new MediaProbe
+        {
+            Title = "clip",
+            Engine = EngineKind.YtDlp,
+            Items = [new MediaItem { Kind = MediaKind.Video, Title = "clip" }]
+        };
+
+        Assert.True(SaveClash.NamesIdentifyFiles(ids));
+        Assert.False(SaveClash.NamesIdentifyFiles(titles));
+        Assert.False(SaveClash.NamesIdentifyFiles(new MediaProbe { Title = "clip", Engine = EngineKind.YtDlp }));
+    }
+
+    [Fact]
     public void Replacing_fetches_every_file_again()
     {
         var dest = Path.Combine(Path.GetTempPath(), "fetchit-replace-" + Guid.NewGuid().ToString("N"));
