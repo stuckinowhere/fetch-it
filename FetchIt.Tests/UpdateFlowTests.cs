@@ -63,6 +63,7 @@ public class UpdateFlowTests : IDisposable
         {
             TargetDirectory = target,
             Launch = start => { Launched.Add(start); return LaunchSucceeds; },
+            LaunchSetup = start => { Launched.Add(start); return Task.FromResult(LaunchSucceeds); },
             RequestShutdown = () => { Interlocked.Increment(ref Shutdowns); ShutdownThread = Environment.CurrentManagedThreadId; }
         };
     }
@@ -90,17 +91,17 @@ public class UpdateFlowTests : IDisposable
     }
 
     [Fact]
-    public async Task Setup_that_does_not_start_falls_back_to_the_zip_and_restarts()
+    public async Task Setup_blocked_on_launch_falls_back_to_the_zip_and_restarts()
     {
         File.WriteAllBytes(Path.Combine(_target, "unins000.dat"), [1]);
         var github = new FakeGitHub(new() { [SumsUrl] = System.Text.Encoding.UTF8.GetBytes(Sums()), [SetupUrl] = _setup, [ZipUrl] = _zip });
         var recorder = new Recorder();
-        var launches = 0;
         var host = new UpdateHost
         {
             TargetDirectory = _target,
-            // Setup refuses to start; the restart of FetchIt.exe succeeds.
-            Launch = start => { recorder.Launched.Add(start); return ++launches > 1; },
+            // Setup is stopped at launch (a Defender ASR rule, say); the restart works.
+            LaunchSetup = start => { recorder.Launched.Add(start); return Task.FromResult(false); },
+            Launch = start => { recorder.Launched.Add(start); return true; },
             RequestShutdown = () => Interlocked.Increment(ref recorder.Shutdowns)
         };
         using var installer = new UpdateInstaller(github, minBytes: 2, maxBytes: 1024 * 1024, host: host);
@@ -176,6 +177,23 @@ public class UpdateFlowTests : IDisposable
         var launch = Assert.Single(recorder.Launched);
         Assert.Equal(Path.Combine(_target, "FetchIt.exe"), launch.FileName);
         Assert.Equal(1, recorder.Shutdowns);
+    }
+
+    [Theory]
+    [InlineData("exit 1", false)] // What a Defender-blocked Inno bootstrap does.
+    [InlineData("exit 0", true)]
+    [InlineData("ping -n 6 127.0.0.1 > nul", true)] // Still running after the grace period.
+    public async Task WatchSetup_judges_the_real_process(string command, bool expected)
+    {
+        var start = new ProcessStartInfo("cmd.exe", $"/c {command}") { UseShellExecute = false, CreateNoWindow = true };
+        Assert.Equal(expected, await UpdateHost.WatchSetupAsync(start, TimeSpan.FromSeconds(2)));
+    }
+
+    [Fact]
+    public async Task WatchSetup_is_false_when_the_file_cannot_start()
+    {
+        var start = new ProcessStartInfo(Path.Combine(_target, "missing.exe")) { UseShellExecute = false };
+        Assert.False(await UpdateHost.WatchSetupAsync(start, TimeSpan.FromSeconds(1)));
     }
 
     private sealed class FakeGitHub(Dictionary<string, byte[]> files) : HttpMessageHandler

@@ -19,6 +19,54 @@ public sealed class UpdateHost
     /// <summary>Ask the app to close. Must be safe to call from any thread.</summary>
     public Action RequestShutdown { get; init; } = DefaultRequestShutdown;
 
+    /// <summary>
+    /// Start Setup and watch it briefly; false when it did not start or died
+    /// right away. Must be true before this app closes for the update.
+    /// </summary>
+    public Func<ProcessStartInfo, Task<bool>> LaunchSetup { get; init; }
+        = start => WatchSetupAsync(start, SetupGrace);
+
+    /// <summary>A blocked Setup exits within a second; a working one runs much longer.</summary>
+    public static readonly TimeSpan SetupGrace = TimeSpan.FromSeconds(5);
+
+    internal static async Task<bool> WatchSetupAsync(ProcessStartInfo start, TimeSpan grace)
+    {
+        Process? process;
+        try
+        {
+            process = Process.Start(start);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn($"Could not start {Path.GetFileName(start.FileName)}: {ex.Message}");
+            return false;
+        }
+
+        if (process is null)
+            return false;
+
+        using (process)
+        {
+            using var timeout = new CancellationTokenSource(grace);
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return true; // Still running: Setup got past the point where it can be blocked.
+            }
+
+            if (process.ExitCode == 0)
+                return true;
+
+            // Inno exit code 1 = "failed to initialize", which includes antivirus
+            // rules that stop its bootstrap .tmp from running in %TEMP%.
+            AppLog.Warn($"Setup exited with code {process.ExitCode} before installing. Antivirus rules can cause this.");
+            return false;
+        }
+    }
+
     public string TargetDirectory { get; init; } = AppContext.BaseDirectory;
 
     public static UpdateHost Default { get; } = new();
@@ -363,29 +411,32 @@ public sealed class UpdateInstaller : IDisposable
         return started;
     }
 
-    public static bool StartSetup(string path) => StartSetup(path, UpdateHost.Default);
+    public static bool StartSetup(string path)
+        => SetupStart(path) is { } start && UpdateHost.Default.Launch(start);
 
-    internal static bool StartSetup(string path, UpdateHost host)
+    /// <summary>How to run the staged setup, or null when the path fails its checks.</summary>
+    internal static ProcessStartInfo? SetupStart(string path)
     {
         if (!IsSafeSetupPath(path) || !LooksLikePe(path))
-            return false;
+            return null;
 
-        return host.Launch(new ProcessStartInfo
+        return new ProcessStartInfo
         {
             FileName = path,
             Arguments = SilentArgs,
             UseShellExecute = false,
             WorkingDirectory = Path.GetDirectoryName(path)
-        });
+        };
     }
 
     /// <summary>Close the app from any thread.</summary>
     public static void ShutdownApp() => UpdateHost.Default.RequestShutdown();
 
     /// <summary>
-    /// Download, verify and start the setup. Returns false only when nothing was
-    /// started, so the caller may still try another asset. Once Setup runs, this
-    /// app must close and nothing else may touch the install folder.
+    /// Download, verify and start the setup. Returns false when Setup did not
+    /// start or was stopped at once (Defender ASR rules can block its bootstrap),
+    /// so the caller may still try another asset. Once Setup runs, this app must
+    /// close and nothing else may touch the install folder.
     /// </summary>
     internal async Task<bool> TryInstallSetupAsync(
         string url,
@@ -394,13 +445,14 @@ public sealed class UpdateInstaller : IDisposable
         string? expectedSha256)
     {
         var path = await DownloadSetupAsync(url, progress, cancellationToken, expectedSha256).ConfigureAwait(false);
-        if (!StartSetup(path, _host))
+        var start = SetupStart(path);
+        if (start is null || !await _host.LaunchSetup(start).ConfigureAwait(false))
         {
-            AppLog.Warn("Setup did not start.");
+            AppLog.Warn("Setup did not run.");
             return false;
         }
 
-        AppLog.Info("Setup started; closing for the update.");
+        AppLog.Info("Setup running; closing for the update.");
         _host.RequestShutdown();
         return true;
     }
