@@ -6,6 +6,9 @@ public static class SaveClash
 {
     private static readonly string[] VideoExtensions = [".mp4", ".mkv", ".webm", ".m4a", ".mov"];
 
+    internal static bool IsVideoName(string name)
+        => VideoExtensions.Contains(Path.GetExtension(name), StringComparer.OrdinalIgnoreCase);
+
     public static IReadOnlyList<string> PlannedNames(MediaProbe probe)
     {
         if (probe.Engine == EngineKind.YtDlp)

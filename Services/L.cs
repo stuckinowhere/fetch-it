@@ -60,6 +60,8 @@ public static class L
     public static string Stop => T("Stop");
     public static string Download => T("Download");
     public static string OpenFolder => T("Open folder");
+    public static string SeparateNoPeople => T("Set aside without people");
+    public static string WithoutPeople => T("Without people");
     public static string Downloads => T("Downloads");
     public static string Footer => $"fetch it {AppVersion.Current.ToString(3)} · © 2026 stuckinowhere · MIT";
     public static string More(int count) => Format("+{0} more", count);
@@ -161,6 +163,12 @@ public static class L
         ["Merging…"] = "Uniendo…",
         ["Finishing…"] = "Terminando…",
         ["Saved to {0}."] = "Guardado en {0}.",
+        ["Set aside without people"] = "Apartar sin personas",
+        ["Without people"] = "Sin personas",
+        ["Getting the people detector…"] = "Preparando detector de personas…",
+        ["Checking {0} of {1}…"] = "Revisando {0} de {1}…",
+        ["Moved to {0}: {1}."] = "Movidos a {0}: {1}.",
+        ["Could not read: {0}."] = "No se pudieron leer: {0}.",
         ["Already in {0}."] = "Ya está en {0}.",
 
         // Engine messages (English stays the in-code value)
