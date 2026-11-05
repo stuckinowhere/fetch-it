@@ -52,6 +52,7 @@ If PowerShell blocks scripts: `Set-ExecutionPolicy -Scope Process Bypass`.
 - **Fetch** — read the link and show a preview. Becomes **Stop** while reading.
 - **Download** (or Ctrl+Enter) — save files after Fetch finishes. Shows speed and how much is left. Becomes **Stop** while saving. When done, **Open folder** takes you to the files.
 - **Set aside without people** — after a download of several files, check them on this PC and move those with no people into a subfolder to review. Nothing is deleted and nothing is uploaded. The first run fetches a 36 MB detector ([YOLOX](https://github.com/Megvii-BaseDetection/YOLOX), Apache-2.0).
+- The window reopens where you left it, on the same screen.
 - Folder icon — where files go. Defaults to your Windows Downloads folder (including if you moved it). Remembers the last folder you pick.
 - Theme icon — light or dark.
 - Update icon — check GitHub Releases. On launch the app does this quietly and only prompts when a newer setup exists. **Install** downloads the setup (or the zip for a portable copy), checks it against the release `SHA256SUMS.txt`, runs it, and reopens the app.

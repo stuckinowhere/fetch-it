@@ -17,6 +17,9 @@ public partial class MainWindow : Window, IUiHost
         InitializeComponent();
         AppIcons.ApplyToWindow(this);
         NativeWindowIcon.Bind(this);
+        RestoreSpot();
+        // For test runs, which must not pull focus from whatever the user is doing.
+        ShowActivated = Environment.GetEnvironmentVariable("FETCHIT_OPEN_QUIETLY") is null;
         Activated += OnActivated;
         Opened += OnOpened;
         SizeChanged += OnWindowSizeChanged;
@@ -25,6 +28,25 @@ public partial class MainWindow : Window, IUiHost
         // Tunnel so the shortcut works while the URL box has focus.
         AddHandler(KeyDownEvent, OnPreviewKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         App.SingleInstance?.Watch(() => Dispatcher.UIThread.Post(ShowExisting));
+    }
+
+    private void RestoreSpot()
+    {
+        if (WindowStore.Load() is not { } spot
+            || !WindowStore.IsReachable(spot, Screens.All.Select(screen => screen.WorkingArea)))
+            return;
+
+        WindowStartupLocation = WindowStartupLocation.Manual;
+        Position = new PixelPoint(spot.X, spot.Y);
+        Width = Math.Max(MinWidth, spot.Width);
+        Height = Math.Max(MinHeight, spot.Height);
+    }
+
+    protected override void OnClosing(WindowClosingEventArgs e)
+    {
+        base.OnClosing(e);
+        if (WindowState == WindowState.Normal)
+            WindowStore.Save(new WindowSpot(Position.X, Position.Y, ClientSize.Width, ClientSize.Height));
     }
 
     protected override void OnDataContextChanged(EventArgs e)
