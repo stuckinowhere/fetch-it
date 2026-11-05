@@ -6,6 +6,9 @@ public static class SaveClash
 {
     private static readonly string[] VideoExtensions = [".mp4", ".mkv", ".webm", ".m4a", ".mov"];
 
+    internal static bool IsVideoName(string name)
+        => VideoExtensions.Contains(Path.GetExtension(name), StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// True when every name comes from the site's own id, so the same name is
     /// the same file. Other names come from a title, which two different

@@ -51,6 +51,7 @@ If PowerShell blocks scripts: `Set-ExecutionPolicy -Scope Process Bypass`.
 - English or Spanish, following the Windows display language.
 - **Fetch** — read the link and show a preview. Becomes **Stop** while reading.
 - **Download** (or Ctrl+Enter) — save files after Fetch finishes. Shows speed and how much is left. Becomes **Stop** while saving. When done, **Open folder** takes you to the files.
+- **Set aside without people** — after a download of several files, check them on this PC and move those with no people into a subfolder to review. Nothing is deleted and nothing is uploaded. The first run fetches a 36 MB detector ([YOLOX](https://github.com/Megvii-BaseDetection/YOLOX), Apache-2.0).
 - Folder icon — where files go. Defaults to your Windows Downloads folder (including if you moved it). Remembers the last folder you pick.
 - Theme icon — light or dark.
 - Update icon — check GitHub Releases. On launch the app does this quietly and only prompts when a newer setup exists. **Install** downloads the setup (or the zip for a portable copy), checks it against the release `SHA256SUMS.txt`, runs it, and reopens the app.
@@ -77,11 +78,11 @@ After this branch is on `main`:
 ```powershell
 git checkout main
 git pull
-git tag v1.2.7
-git push origin v1.2.7
+git tag v1.2.8
+git push origin v1.2.8
 ```
 
-That runs `.github/workflows/release.yml`, which tests, publishes a self-contained win-x64 build, fetches tools, and creates a GitHub Release with `fetch-it-v1.2.7-win-x64-setup.exe`, `fetch-it-v1.2.7-win-x64.zip`, and `SHA256SUMS.txt` (the in-app updater refuses a release without it).
+That runs `.github/workflows/release.yml`, which tests, publishes a self-contained win-x64 build, fetches tools, and creates a GitHub Release with `fetch-it-v1.2.8-win-x64-setup.exe`, `fetch-it-v1.2.8-win-x64.zip`, and `SHA256SUMS.txt` (the in-app updater refuses a release without it).
 
 To build the installer locally (needs [Inno Setup 6](https://jrsoftware.org/isinfo.php)):
 

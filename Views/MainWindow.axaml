@@ -298,6 +298,22 @@
                                    FontWeight="Bold" />
                     </StackPanel>
                 </Button>
+                <Button Classes="Flat"
+                        Command="{Binding SeparateCommand}"
+                        IsVisible="{Binding ShowSeparate}"
+                        AutomationProperties.Name="{x:Static s:L.SeparateNoPeople}"
+                        Cursor="Hand"
+                        Padding="12,0"
+                        Height="36">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <icons:MaterialIcon Kind="AccountOff" Width="20" Height="20" />
+                        <TextBlock Text="{x:Static s:L.SeparateNoPeople}"
+                                   VerticalAlignment="Center"
+                                   FontFamily="{StaticResource Plex}"
+                                   FontSize="14"
+                                   FontWeight="Bold" />
+                    </StackPanel>
+                </Button>
             </StackPanel>
         </StackPanel>
 

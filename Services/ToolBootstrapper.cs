@@ -219,6 +219,14 @@ public static class ToolBootstrapper
         }
     }
 
+    /// <summary>Downloads a pinned file if it is missing or fails its hash.</summary>
+    internal static async Task EnsureVerifiedFileAsync(string url, string dest, string sha256, CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+        using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(8) };
+        await DownloadVerifiedAsync(http, url, dest, sha256, cancellationToken).ConfigureAwait(false);
+    }
+
     private static async Task DownloadVerifiedAsync(
         HttpClient http,
         string url,
@@ -391,7 +399,8 @@ internal static class ToolPins
     [
         "https://github.com/yt-dlp/yt-dlp/releases/download/",
         "https://github.com/GyanD/codexffmpeg/releases/download/",
-        "https://codeberg.org/mikf/gallery-dl/releases/download/"
+        "https://codeberg.org/mikf/gallery-dl/releases/download/",
+        "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/"
     ];
 
     internal static readonly string PublicKeyBase64 = LoadPublicKey();

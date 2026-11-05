@@ -81,6 +81,9 @@ public partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowOpenFolder))]
     private bool _statusIsError;
 
+    [ObservableProperty] private bool _showSeparate;
+    private IReadOnlyList<string> _savedNames = [];
+
     [ObservableProperty] private bool _isDark;
     [ObservableProperty] private bool _isSignedIn;
     [ObservableProperty] private double _tileWidth = 320;
@@ -326,6 +329,7 @@ public partial class MainViewModel : ObservableObject
             var note = await _fetcher.DownloadAsync(probe, Url.Trim(), FolderPath, UiProgress(), duplicate, token);
             HideWork();
             ShowOk(note is null ? L.Format("Saved to {0}.", FolderLabel) : L.Translate(note));
+            OfferSeparate(probe);
         }
         catch (OperationCanceledException)
         {
@@ -334,6 +338,51 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             AppLog.Error($"download failed for {AppLog.SafeUrl(Url)}", ex);
+            HideWork();
+            await FailAsync(Short(ex.Message));
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    // Only what this download saved: the folder also holds the user's other files.
+    private void OfferSeparate(MediaProbe probe)
+    {
+        _savedNames = SaveClash.ExistingNames(FolderPath, probe);
+        ShowSeparate = _savedNames.Count > 1;
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    private async Task SeparateAsync()
+    {
+        if (IsBusy || _savedNames.Count == 0)
+            return;
+
+        var previous = _fetchCts;
+        previous?.Cancel();
+        var cts = new CancellationTokenSource();
+        _fetchCts = cts;
+        previous?.Dispose();
+
+        IsBusy = true;
+        HideStatus();
+        ShowWork("Getting the people detector…", indeterminate: true);
+        try
+        {
+            var outcome = await PeopleSorter.SeparateAsync(FolderPath, _savedNames, UiProgress(), cts.Token);
+            HideWork();
+            var message = L.Format("Moved to {0}: {1}.", L.WithoutPeople, outcome.Moved);
+            ShowOk(outcome.Unread > 0 ? $"{message} {L.Format("Could not read: {0}.", outcome.Unread)}" : message);
+        }
+        catch (OperationCanceledException)
+        {
+            HideWork();
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("people check failed", ex);
             HideWork();
             await FailAsync(Short(ex.Message));
         }
@@ -470,6 +519,7 @@ public partial class MainViewModel : ObservableObject
     private void HideStatus()
     {
         ShowStatus = false;
+        ShowSeparate = false;
         StatusText = "";
         StatusIsError = false;
     }
