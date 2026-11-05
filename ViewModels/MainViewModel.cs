@@ -16,6 +16,7 @@ public interface IUiHost
     Task ShowUpdateAsync(UpdateCheckResult result);
     Task ShowAlertAsync(string heading, string message, bool isError);
     Task<string?> AskQualityAsync(string title, IReadOnlyList<MediaQuality> qualities);
+    Task<bool?> AskIncludeVideosAsync(int images, int videos);
     Task<bool> AskPasteLinkAsync(string link);
     Task ShowAccountAsync();
 }
@@ -315,6 +316,18 @@ public partial class MainViewModel : ObservableObject
             }
         }
 
+        try
+        {
+            if (await ChooseMediaAsync(probe, Url) is not { } chosen)
+                return;
+            probe = chosen;
+        }
+        catch (Exception ex)
+        {
+            await FailAsync(Short(ex.Message));
+            return;
+        }
+
         // The same file is replaced, with nothing to ask. A name taken from a title
         // proves nothing, so that file keeps both copies unless the bytes match.
         var duplicate = SaveClash.NamesIdentifyFiles(probe) ? DuplicateChoice.Overwrite : DuplicateChoice.KeepBoth;
@@ -357,6 +370,20 @@ public partial class MainViewModel : ObservableObject
         {
             IsBusy = false;
         }
+    }
+
+    /// <summary>Asks about videos when the list has both kinds. Null means the user cancelled.</summary>
+    internal async Task<MediaProbe?> ChooseMediaAsync(MediaProbe probe, string url)
+    {
+        if (Ui is null || !MediaFetcher.CanLeaveOutVideos(probe, url))
+            return probe;
+
+        return await Ui.AskIncludeVideosAsync(probe.ImageCount, probe.VideoCount) switch
+        {
+            true => probe,
+            false => probe.PhotosOnly(),
+            null => null
+        };
     }
 
     /// <summary>A whole profile gets its own folder, so it never mixes with other downloads.</summary>

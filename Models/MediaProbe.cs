@@ -59,6 +59,17 @@ public sealed class MediaProbe
     public bool HasVideo => VideoCount > 0;
     public int FileCount => VideoCount + ImageCount;
 
+    /// <summary>The same list with the videos left out.</summary>
+    public MediaProbe PhotosOnly() => new()
+    {
+        Title = Title,
+        Site = Site,
+        ImageCount = ImageCount,
+        Engine = Engine,
+        Items = Items.Where(item => item.Kind == MediaKind.Image).ToList(),
+        IsPartial = IsPartial
+    };
+
     public string Summary
     {
         get

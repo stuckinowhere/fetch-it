@@ -28,6 +28,28 @@ public class PreviewGridTests
             .ToList()
     };
 
+    [Theory]
+    [InlineData("Everything", true)]
+    [InlineData("PhotosOnly", false)]
+    public async Task The_media_question_closes_with_the_choice(string button, bool expected)
+    {
+        var answer = await Session.Dispatch(async () =>
+        {
+            var owner = new Window();
+            owner.Show();
+            var window = new MediaChoiceWindow(5979, 2005);
+            var shown = window.ShowDialog<bool?>(owner);
+            Dispatcher.UIThread.RunJobs();
+            window.FindControl<Button>(button)!
+                .RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+            var result = await shown;
+            owner.Close();
+            return result;
+        }, CancellationToken.None);
+
+        Assert.Equal(expected, answer);
+    }
+
     private static List<string> BuiltTiles(Window window)
         => window.GetVisualDescendants()
             .OfType<Control>()

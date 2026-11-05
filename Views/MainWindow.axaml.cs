@@ -95,6 +95,12 @@ public partial class MainWindow : Window, IUiHost
         return await window.ShowDialog<string?>(this);
     }
 
+    public async Task<bool?> AskIncludeVideosAsync(int images, int videos)
+    {
+        var window = new MediaChoiceWindow(images, videos);
+        return await window.ShowDialog<bool?>(this);
+    }
+
     public async Task<bool> AskPasteLinkAsync(string link)
     {
         var window = new ConfirmWindow(
