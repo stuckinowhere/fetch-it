@@ -34,9 +34,22 @@ public sealed class GalleryDlService
         args.AddRange(cookies.Arguments);
         args.Add(url);
 
-        var text = await ProcessRunner.RunTextAsync(
-            tools.GalleryDl, args, cancellationToken, timeout: ReadLimit)
-            .ConfigureAwait(false);
+        // gallery-dl prints everything at the end, so show that it is alive.
+        using var reading = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var ticker = ShowElapsedAsync(wholeProfile ? "Reading the whole profile…" : "Reading link…", progress, reading.Token);
+        string text;
+        try
+        {
+            text = await ProcessRunner.RunTextAsync(
+                tools.GalleryDl, args, cancellationToken, timeout: ReadLimit)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            reading.Cancel();
+            await ticker.ConfigureAwait(false);
+        }
+
         if (string.IsNullOrWhiteSpace(text) || LooksLikeFailure(text))
         {
             AppLog.Warn($"gallery-dl probe failed for {AppLog.SafeUrl(url)}:\n{text}");
@@ -46,6 +59,21 @@ public sealed class GalleryDlService
         if (probe.FileCount > 0 && probe.Items.Count > 0)
             return probe;
         throw new InvalidOperationException(ShortError(url, text));
+    }
+
+    private static async Task ShowElapsedAsync(string status, IProgress<FetchProgress>? progress, CancellationToken token)
+    {
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(token).ConfigureAwait(false))
+                progress?.Report(new FetchProgress { Status = $"{status} {clock.Elapsed:m\\:ss}" });
+        }
+        catch (OperationCanceledException)
+        {
+            // Reading finished.
+        }
     }
 
     public async Task DownloadAsync(
@@ -124,6 +152,8 @@ public sealed class GalleryDlService
         var leftover = jobs.ToList();
         var total = jobs.Count;
         var done = 0;
+        var bytes = 0L;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
 
         async Task AttemptAsync(IReadOnlyList<(string Url, string Path)> batch, int parallel)
         {
@@ -150,11 +180,12 @@ public sealed class GalleryDlService
                             await HttpFetch.SaveStreamAsync(http, job.Url, job.Path, token)
                                 .ConfigureAwait(false);
                             var n = Interlocked.Increment(ref done);
+                            var saved = Interlocked.Add(ref bytes, new FileInfo(job.Path).Length);
                             progress.Report(new FetchProgress
                             {
                                 Percent = 100.0 * n / total,
                                 HasPercent = true,
-                                Status = $"{n} / {total}"
+                                Status = BatchStatus(n, total, saved, clock.Elapsed)
                             });
                         }
                     }
@@ -218,6 +249,10 @@ public sealed class GalleryDlService
         args.AddRange(cookies.Arguments);
         args.Add(url);
 
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        using var moving = new CancellationTokenSource();
+        var mover = MoveWhileRunningAsync(staging, dest, moveAs, moving.Token);
+
         int code;
         try
         {
@@ -231,20 +266,65 @@ public sealed class GalleryDlService
                     {
                         Percent = total == 0 ? 0 : 100.0 * done / total,
                         HasPercent = true,
-                        Status = $"{done} / {total}"
+                        Status = BatchStatus(done, total, 0, clock.Elapsed)
                     });
                 }
             }, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
+            moving.Cancel();
+            await mover.ConfigureAwait(false);
             staging.MoveTo(dest, moveAs); // Keep what finished before Stop.
             throw;
         }
 
+        moving.Cancel();
+        await mover.ConfigureAwait(false);
         progress.Report(new FetchProgress { Status = "Saving…" });
         done = Math.Max(done, staging.MoveTo(dest, moveAs));
         EnsureToolSucceeded(code, done, fileCount);
+    }
+
+    /// <summary>"12 / 200 · 3.1 MB/s · about 2 min left", as far as it is known yet.</summary>
+    internal static string BatchStatus(int done, int total, long bytes, TimeSpan elapsed)
+    {
+        var parts = new List<string> { $"{done} / {total}" };
+        if (bytes > 0 && elapsed >= TimeSpan.FromSeconds(1))
+            parts.Add(YtDlpParser.FormatSpeed(bytes / elapsed.TotalSeconds));
+        if (done > 0 && done < total && elapsed >= TimeSpan.FromSeconds(3))
+        {
+            var seconds = elapsed.TotalSeconds / done * (total - done);
+            parts.Add(seconds < 60
+                ? L.Format("about {0} s left", Math.Max(5, (int)Math.Ceiling(seconds / 5) * 5))
+                : L.Format("about {0} min left", (int)Math.Ceiling(seconds / 60)));
+        }
+
+        return string.Join("  ·  ", parts);
+    }
+
+    /// <summary>Hand finished files over as they land, so Stop or a crash loses nothing.</summary>
+    private static async Task MoveWhileRunningAsync(ToolStaging staging, string dest, DuplicateChoice duplicate, CancellationToken token)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(token).ConfigureAwait(false))
+            {
+                try
+                {
+                    staging.MoveTo(dest, duplicate);
+                }
+                catch (IOException)
+                {
+                    // The tool still holds that file; the next round takes it.
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The tool finished.
+        }
     }
 
     internal static void EnsureToolSucceeded(int code, int done, int fileCount)

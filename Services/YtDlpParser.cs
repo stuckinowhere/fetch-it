@@ -115,7 +115,7 @@ public static class YtDlpParser
         return value * factor;
     }
 
-    private static string FormatSpeed(double bytesPerSecond)
+    internal static string FormatSpeed(double bytesPerSecond)
     {
         var mb = bytesPerSecond / (1024d * 1024d);
         if (mb >= 0.1)
