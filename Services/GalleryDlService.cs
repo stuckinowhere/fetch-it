@@ -94,6 +94,7 @@ public sealed class GalleryDlService
             var jobs = PlanDirectFiles(dest, probe, duplicate);
             var posts = ToolPosts(dest, probe, duplicate);
             var grandTotal = jobs.Count + posts.Count;
+            AppLog.Info($"download plan: {jobs.Count} direct, {posts.Count} through the tool, as {duplicate}");
 
             // Photos first: they are the fast part. A failure there must not cost the videos.
             InvalidOperationException? failed = null;
@@ -315,8 +316,9 @@ public sealed class GalleryDlService
                 if (LooksLikeSavedFile(line))
                 {
                     done++;
-                    var shown = offset + done;
-                    var total = Math.Max(fileCount, shown);
+                    // gallery-dl can report a video more than once; never pass the known total.
+                    var total = videosOnly ? fileCount : Math.Max(fileCount, offset + done);
+                    var shown = Math.Min(offset + done, total);
                     progress.Report(new FetchProgress
                     {
                         Percent = total == 0 ? 0 : 100.0 * shown / total,

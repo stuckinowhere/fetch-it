@@ -312,6 +312,7 @@ public partial class MainViewModel : ObservableObject
             else
                 duplicate = await Ui.AskIfAlreadySavedAsync(FolderLabel, existing);
 
+            AppLog.Info($"already saved: {existing.Count} of {probe.FileCount}; choice {duplicate}");
             if (duplicate == DuplicateChoice.Cancel)
                 return;
             // Skip means "keep what I have": download the rest, if there is any.
