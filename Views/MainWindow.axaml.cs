@@ -138,6 +138,12 @@ public partial class MainWindow : Window, IUiHost
         Topmost = false;
     }
 
+    private void OnTileShown(object? sender, VisualTreeAttachmentEventArgs e)
+        => ((sender as Control)?.DataContext as PreviewCard)?.Show();
+
+    private void OnTileHidden(object? sender, VisualTreeAttachmentEventArgs e)
+        => ((sender as Control)?.DataContext as PreviewCard)?.Hide();
+
     private void OnPreviewSizeChanged(object? sender, SizeChangedEventArgs e)
         => FitPreview(e.NewSize.Width, e.NewSize.Height);
 

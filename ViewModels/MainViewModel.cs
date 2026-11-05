@@ -47,6 +47,8 @@ public partial class MainViewModel : ObservableObject
     public IUiHost? Ui { get; set; }
 
     public ObservableCollection<PreviewCard> PreviewCards { get; } = [];
+    [ObservableProperty] private IReadOnlyList<PreviewRow> _previewRows = [];
+    private int _columns = 1;
 
     [ObservableProperty] private string _url = "";
     [ObservableProperty] private string _title = "";
@@ -230,14 +232,16 @@ public partial class MainViewModel : ObservableObject
         _probeCts = cts;
         previous?.Dispose();
 
+        var requested = Url.Trim();
         IsProbing = true;
         HideStatus();
         ShowWork("Reading link…", indeterminate: true);
         AppLog.Info($"fetch {AppLog.SafeUrl(Url)}");
         try
         {
-            var probe = await ProbeWithSessionAsync(Url.Trim(), cts.Token);
-            if (version != _probeVersion)
+            var probe = await ProbeWithSessionAsync(requested, cts.Token);
+            // A partial list comes back after a Stop too, which a new link also triggers.
+            if (version != _probeVersion || Url.Trim() != requested)
                 return;
             ApplyProbe(probe);
             HideWork();
@@ -247,6 +251,7 @@ public partial class MainViewModel : ObservableObject
             if (version != _probeVersion)
                 return;
             HideWork();
+            IsProbing = false;
             if (!cts.IsCancellationRequested)
                 await FailAsync(ProbeTimeoutMessage(Url));
         }
@@ -257,6 +262,7 @@ public partial class MainViewModel : ObservableObject
             AppLog.Error($"fetch failed for {AppLog.SafeUrl(Url)}", ex);
             ClearResult();
             HideWork();
+            IsProbing = false;
             await FailAsync(Short(ex.Message));
         }
         finally
@@ -552,6 +558,7 @@ public partial class MainViewModel : ObservableObject
         var tiles = items.Count > 1;
         foreach (var item in items)
             PreviewCards.Add(new PreviewCard(item, tiles));
+        PreviewRows = PreviewRow.Split(PreviewCards, _columns);
         NotifyPreviewLayout();
     }
 
@@ -569,6 +576,12 @@ public partial class MainViewModel : ObservableObject
         else
         {
             var cols = width >= 1000 ? 3 : width >= 640 ? 2 : 1;
+            if (cols != _columns)
+            {
+                _columns = cols;
+                PreviewRows = PreviewRow.Split(PreviewCards, cols);
+            }
+
             const double gap = 16;
             TileWidth = Math.Max(200, Math.Floor((width - gap * (cols - 1)) / cols));
             TileImageHeight = Math.Max(120, Math.Floor(TileWidth * 9.0 / 16.0));
@@ -608,6 +621,9 @@ public partial class MainViewModel : ObservableObject
         await Ui.ShowAlertAsync(L.Error, L.Translate(message), isError: true);
     }
 
+    // A listing ends by itself or by Stop, and keeps what it found either way.
+    private const int WholeProfileSeconds = 30 * 24 * 60 * 60;
+
     internal static int ProbeSeconds(string url)
     {
         if (!MediaRouter.TryParseHttpUrl(url, out var uri))
@@ -616,6 +632,8 @@ public partial class MainViewModel : ObservableObject
             return 8;
         if (MediaRouter.IsKemono(uri))
             return 60;
+        if (MediaRouter.InstagramProfileUrl(url) is not null)
+            return WholeProfileSeconds;
         if (MediaRouter.IsGalleryHost(uri))
             return (int)GalleryDlService.ReadLimit.TotalSeconds; // Every file is listed.
         return 35;

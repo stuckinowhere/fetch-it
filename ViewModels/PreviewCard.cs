@@ -10,19 +10,27 @@ public sealed partial class PreviewCard : ObservableObject, IDisposable
 {
     private static readonly HttpClient Http = HttpFetch.CreateClient(timeout: TimeSpan.FromSeconds(12));
     private static readonly SemaphoreSlim ImageThrottle = new(6);
-    private CancellationTokenSource? _cts = new();
+
+    // Scrolling past a tile should not fetch its picture.
+    private static readonly TimeSpan ScrollPause = TimeSpan.FromMilliseconds(150);
+
+    private CancellationTokenSource? _cts;
 
     private readonly int _decodeWidth;
+    private readonly bool _tile;
+    private readonly string? _thumbnail;
 
     /// <param name="item">What to show.</param>
     /// <param name="tile">A small tile in a grid, which may hold thousands.</param>
     public PreviewCard(MediaItem item, bool tile = false)
     {
         _decodeWidth = tile ? 320 : 960;
+        _tile = tile;
+        _thumbnail = string.IsNullOrWhiteSpace(item.ThumbnailUrl) ? null : item.ThumbnailUrl;
         Title = item.Title;
         Overlay = item.Overlay;
-        if (!string.IsNullOrWhiteSpace(item.ThumbnailUrl))
-            _ = LoadAsync(item.ThumbnailUrl, _cts.Token);
+        if (!tile)
+            Show();
     }
 
     public string Title { get; }
@@ -32,9 +40,36 @@ public sealed partial class PreviewCard : ObservableObject, IDisposable
     [ObservableProperty] private double _tileWidth = 320;
     [ObservableProperty] private double _tileImageHeight = 180;
 
+    internal bool IsLoading => _cts is not null;
+
+    /// <summary>A profile can have thousands of tiles, so only those on screen hold a picture.</summary>
+    public void Show()
+    {
+        if (_thumbnail is null || _cts is not null)
+            return;
+        _cts = new CancellationTokenSource();
+        _ = LoadAsync(_thumbnail, _cts.Token);
+    }
+
+    public void Hide()
+    {
+        if (_tile)
+            Dispose();
+    }
+
     private async Task LoadAsync(string url, CancellationToken token)
     {
-        await ImageThrottle.WaitAsync(token).ConfigureAwait(false);
+        try
+        {
+            if (_tile)
+                await Task.Delay(ScrollPause, token).ConfigureAwait(false);
+            await ImageThrottle.WaitAsync(token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
         try
         {
             foreach (var candidate in ThumbnailUrl.Candidates(url))
@@ -60,25 +95,14 @@ public sealed partial class PreviewCard : ObservableObject, IDisposable
                     if (ms.Length < 32)
                         continue;
                     ms.Position = 0;
-                    var bitmap = await Dispatcher.UIThread.InvokeAsync(() =>
+                    var bitmap = Decode(ms);
+                    await Dispatcher.UIThread.InvokeAsync(() =>
                     {
-                        try
-                        {
-                            return Bitmap.DecodeToWidth(ms, _decodeWidth);
-                        }
-                        catch
-                        {
-                            ms.Position = 0;
-                            return new Bitmap(ms);
-                        }
+                        if (token.IsCancellationRequested)
+                            bitmap.Dispose();
+                        else
+                            Image = bitmap;
                     });
-                    if (token.IsCancellationRequested)
-                    {
-                        bitmap.Dispose();
-                        return;
-                    }
-
-                    Image = bitmap;
                     return;
                 }
                 catch
@@ -95,12 +119,26 @@ public sealed partial class PreviewCard : ObservableObject, IDisposable
         }
     }
 
+    private Bitmap Decode(MemoryStream picture)
+    {
+        try
+        {
+            return Bitmap.DecodeToWidth(picture, _decodeWidth);
+        }
+        catch
+        {
+            picture.Position = 0;
+            return new Bitmap(picture);
+        }
+    }
+
     public void Dispose()
     {
         _cts?.Cancel();
         _cts?.Dispose();
         _cts = null;
-        Image?.Dispose();
+        var shown = Image;
         Image = null;
+        shown?.Dispose();
     }
 }

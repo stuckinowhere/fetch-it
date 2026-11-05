@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FetchIt.Models;
 
 namespace FetchIt.Services;
@@ -18,25 +19,24 @@ public sealed class GalleryDlService
         progress?.Report(new FetchProgress { Status = wholeProfile ? "Reading the whole profile…" : "Reading link…" });
         if (string.IsNullOrEmpty(tools.GalleryDl))
             throw new InvalidOperationException(ShortError(url, ""));
+        if (wholeProfile)
+            return await ListProfileAsync(url, tools, progress, cancellationToken).ConfigureAwait(false);
 
         var social = MediaRouter.TryParseHttpUrl(url, out var uri) && MediaRouter.IsSocialPostHost(uri);
         using var cookies = SessionCookies.BindForTool(social);
         var args = new List<string>
         {
-            // A profile is a list of tabs; -J follows them instead of naming them.
-            wholeProfile ? "--resolve-json" : "--dump-json",
+            "--dump-json",
             "--no-download",
             "-o", "extractor.instagram.sleep-request=1.0-2.0"
         };
-        if (wholeProfile)
-            args.AddRange(["-o", "extractor.instagram.include=" + InstagramEverything]);
         AddHostOptions(args, url);
         args.AddRange(cookies.Arguments);
         args.Add(url);
 
         // gallery-dl prints everything at the end, so show that it is alive.
         using var reading = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var ticker = ShowElapsedAsync(wholeProfile ? "Reading the whole profile…" : "Reading link…", progress, reading.Token);
+        var ticker = ShowElapsedAsync("Reading link…", progress, reading.Token);
         string text;
         try
         {
@@ -59,6 +59,117 @@ public sealed class GalleryDlService
         if (probe.FileCount > 0 && probe.Items.Count > 0)
             return probe;
         throw new InvalidOperationException(ShortError(url, text));
+    }
+
+    /// <summary>
+    /// A big profile can take hours, so gallery-dl writes each file to a list as
+    /// it finds it. Whatever stops the run, what was found is kept.
+    /// </summary>
+    private static async Task<MediaProbe> ListProfileAsync(
+        string url,
+        ToolPaths tools,
+        IProgress<FetchProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        var social = MediaRouter.TryParseHttpUrl(url, out var uri) && MediaRouter.IsSocialPostHost(uri);
+        using var cookies = SessionCookies.BindForTool(social);
+        using var staging = ToolStaging.Create();
+        var args = new List<string>
+        {
+            "--no-download",
+            "--no-skip",
+            "-D", staging.Folder,
+            "-o", "path-extended=false",
+            "-o", "extractor.instagram.sleep-request=1.0-2.0",
+            "-o", "extractor.instagram.include=" + InstagramEverything,
+            "-o", ListingOption(staging.Folder)
+        };
+        AddHostOptions(args, url);
+        args.AddRange(cookies.Arguments);
+        args.Add(url);
+
+        var listing = new ProfileListing();
+        using var running = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var watcher = WatchListingAsync(listing, progress, running);
+        var finished = false;
+        try
+        {
+            var code = await ProcessRunner.RunAsync(tools.GalleryDl, args, listing.Read, running.Token).ConfigureAwait(false);
+            finished = code == 0;
+        }
+        catch (OperationCanceledException)
+        {
+            AppLog.Info($"profile listing stopped with {listing.Files} files");
+        }
+        finally
+        {
+            await running.CancelAsync().ConfigureAwait(false);
+            await watcher.ConfigureAwait(false);
+        }
+
+        var list = Path.Combine(staging.Folder, ListFile);
+        var probe = GalleryDlParser.ParseLines(
+            File.Exists(list) ? File.ReadLines(list) : [],
+            partial: !finished);
+        var throughTool = probe.Items.Count(item => item.ToolUrl is not null);
+        AppLog.Info($"profile listing: {probe.ImageCount} images, {probe.VideoCount} videos, {throughTool} through the tool, partial {probe.IsPartial}");
+        if (probe.Items.Count > 0)
+            return probe;
+
+        cancellationToken.ThrowIfCancellationRequested();
+        throw new InvalidOperationException(ShortError(url, listing.Problems));
+    }
+
+    // gallery-dl goes quiet only when something is wrong: a rate-limit wait is
+    // shorter than this and it logs a line before it starts.
+    private static async Task WatchListingAsync(
+        ProfileListing listing,
+        IProgress<FetchProgress>? progress,
+        CancellationTokenSource running)
+    {
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(running.Token).ConfigureAwait(false))
+            {
+                progress?.Report(new FetchProgress { Status = listing.Status(clock.Elapsed) });
+                if (!listing.IsStalled(ListingStallLimit))
+                    continue;
+                AppLog.Warn($"profile listing silent for {ListingStallLimit.TotalMinutes:0} minutes; keeping what was found");
+                await running.CancelAsync().ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The listing ended.
+        }
+    }
+
+    private const string ListFile = "list.jsonl";
+
+    /// <summary>Only the fields the parser reads: captions and tags on a big profile run to gigabytes.</summary>
+    internal static string ListingOption(string folder)
+    {
+        var writer = new
+        {
+            name = "metadata",
+            @event = "prepare",
+            mode = "jsonl",
+            filename = ListFile,
+            open = "a",
+            @private = true,
+            include = new[]
+            {
+                "_url", "url", "display_url", "filename", "extension", "category", "subcategory",
+                "type", "title", "description", "content", "thumbnail", "thumbnail_url", "duration"
+            }
+        };
+        using var json = JsonSerializer.SerializeToDocument(writer);
+        var fields = new Dictionary<string, JsonElement> { ["base-directory"] = JsonSerializer.SerializeToElement(folder) };
+        foreach (var property in json.RootElement.EnumerateObject())
+            fields[property.Name] = property.Value.Clone();
+        return "postprocessors=" + JsonSerializer.Serialize(new[] { fields });
     }
 
     private static async Task ShowElapsedAsync(string status, IProgress<FetchProgress>? progress, CancellationToken token)
@@ -123,8 +234,9 @@ public sealed class GalleryDlService
     }
 
     // Everything a signed-in account can see on a profile, as files. No "info":
-    // that is metadata, not media.
-    internal const string InstagramEverything = "avatar,posts,reels,stories,highlights,tagged";
+    // that is metadata, not media. The short tabs come first, so a stopped run
+    // still has the stories, which disappear within a day.
+    internal const string InstagramEverything = "avatar,stories,highlights,posts,reels,tagged";
 
     internal const string InstagramFileName = "{filename}.{extension}";
 
@@ -133,8 +245,10 @@ public sealed class GalleryDlService
 
     internal const int DirectParallel = 4;
 
-    // Reading a large profile takes minutes; the Stop button is the user's limit.
     internal static readonly TimeSpan ReadLimit = TimeSpan.FromMinutes(30);
+
+    // A whole profile has no total limit: the Stop button is the user's limit.
+    internal static readonly TimeSpan ListingStallLimit = TimeSpan.FromMinutes(20);
 
     // Fetch lists every file, so Download only needs a way to get each of them.
     internal static bool CanDownloadDirect(MediaProbe probe)

@@ -53,6 +53,9 @@ public sealed class MediaProbe
     public IReadOnlyList<MediaItem> Items { get; init; } = [];
     public IReadOnlyList<MediaQuality> Qualities { get; init; } = [];
 
+    /// <summary>The listing stopped early, so files may be missing.</summary>
+    public bool IsPartial { get; init; }
+
     public bool HasVideo => VideoCount > 0;
     public int FileCount => VideoCount + ImageCount;
 
@@ -69,6 +72,8 @@ public sealed class MediaProbe
                 parts.Add(VideoCount == 1 ? Services.L.T("1 video") : Services.L.Format("{0} videos", VideoCount));
             if (ImageCount > 0)
                 parts.Add(ImageCount == 1 ? Services.L.T("1 image") : Services.L.Format("{0} images", ImageCount));
+            if (IsPartial)
+                parts.Add(Services.L.T("Partial list"));
             return string.Join("  ·  ", parts);
         }
     }
