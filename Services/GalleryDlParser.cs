@@ -124,8 +124,6 @@ public static class GalleryDlParser
                   ?? ReadString(el, "display_url");
         var ext = ReadString(el, "extension") ?? ReadString(el, "ext") ?? ExtFromUrl(url);
         var isVideo = IsVideo(ReadString(el, "type"), ext);
-        if (HttpsOrNull(url) is null)
-            AppLog.Info($"gallery item without a direct link: {(url is null ? "none" : url[..Math.Min(url.Length, 24)])}");
         var title = ReadString(el, "title")
                     ?? ReadString(el, "content")
                     ?? ReadString(el, "description")
@@ -139,6 +137,7 @@ public static class GalleryDlParser
             Duration = ReadDuration(el),
             ThumbnailUrl = ThumbnailFor(el, url, isVideo),
             DownloadUrl = HttpsOrNull(url),
+            ToolUrl = url?.StartsWith("ytdl:", StringComparison.OrdinalIgnoreCase) == true ? HttpsOrNull(url[5..]) : null,
             SaveName = InstagramSaveName(el, ext)
         };
         found.Add((item, title, site));

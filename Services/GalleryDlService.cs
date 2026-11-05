@@ -92,12 +92,33 @@ public sealed class GalleryDlService
         if (CanDownloadDirect(probe))
         {
             var jobs = PlanDirectFiles(dest, probe, duplicate);
-            if (jobs.Count > 0)
-                await DownloadDirectAsync(jobs, progress, cancellationToken).ConfigureAwait(false);
+            var posts = ToolPosts(dest, probe, duplicate);
+            var grandTotal = jobs.Count + posts.Count;
+
+            // Photos first: they are the fast part. A failure there must not cost the videos.
+            InvalidOperationException? failed = null;
+            try
+            {
+                if (jobs.Count > 0)
+                    await DownloadDirectAsync(jobs, progress, cancellationToken, grandTotal).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException ex)
+            {
+                failed = ex;
+            }
+
+            if (posts.Count > 0)
+            {
+                await DownloadWithToolAsync(posts, dest, grandTotal, DuplicateChoice.Skip, false, progress, cancellationToken, offset: jobs.Count)
+                    .ConfigureAwait(false);
+            }
+
+            if (failed is not null)
+                throw failed;
             return;
         }
 
-        await DownloadWithToolAsync(url, dest, probe.FileCount, duplicate, wholeProfile, progress, cancellationToken).ConfigureAwait(false);
+        await DownloadWithToolAsync([url], dest, probe.FileCount, duplicate, wholeProfile, progress, cancellationToken).ConfigureAwait(false);
     }
 
     // Everything a signed-in account can see on a profile, as files. No "info":
@@ -109,10 +130,21 @@ public sealed class GalleryDlService
     // Reading a large profile takes minutes; the Stop button is the user's limit.
     internal static readonly TimeSpan ReadLimit = TimeSpan.FromMinutes(30);
 
-    // Fetch lists every file, so Download only needs a link for each of them.
+    // Fetch lists every file, so Download only needs a way to get each of them.
     internal static bool CanDownloadDirect(MediaProbe probe)
         => probe.Items.Count > 0
-           && probe.Items.All(item => MediaRouter.TryParseHttpUrl(item.DownloadUrl, out _));
+           && probe.Items.All(item => MediaRouter.TryParseHttpUrl(item.DownloadUrl, out _) || item.ToolUrl is not null);
+
+    /// <summary>Posts whose media only the tool can fetch, minus those already saved.</summary>
+    internal static IReadOnlyList<string> ToolPosts(string dest, MediaProbe probe, DuplicateChoice duplicate)
+        => probe.Items
+            .Where(item => item.ToolUrl is not null
+                           && !(duplicate == DuplicateChoice.Skip
+                                && item.SaveName is not null
+                                && File.Exists(Path.Combine(dest, item.SaveName))))
+            .Select(item => item.ToolUrl!)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
 
     internal static IReadOnlyList<(string Url, string Path)> PlanDirectFiles(
         string dest,
@@ -145,12 +177,14 @@ public sealed class GalleryDlService
     internal static async Task DownloadDirectAsync(
         IReadOnlyList<(string Url, string Path)> jobs,
         IProgress<FetchProgress> progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int grandTotal = 0)
     {
         using var handler = HttpFetch.CreateHandler(maxConnectionsPerServer: DirectParallel);
         using var http = HttpFetch.CreateClient(handler, Timeout.InfiniteTimeSpan);
         var leftover = jobs.ToList();
         var total = jobs.Count;
+        var shownTotal = Math.Max(grandTotal, total);
         var done = 0;
         var bytes = 0L;
         var clock = System.Diagnostics.Stopwatch.StartNew();
@@ -183,9 +217,9 @@ public sealed class GalleryDlService
                             var saved = Interlocked.Add(ref bytes, new FileInfo(job.Path).Length);
                             progress.Report(new FetchProgress
                             {
-                                Percent = 100.0 * n / total,
+                                Percent = 100.0 * n / shownTotal,
                                 HasPercent = true,
-                                Status = BatchStatus(n, total, saved, clock.Elapsed)
+                                Status = BatchStatus(n, shownTotal, saved, clock.Elapsed)
                             });
                         }
                     }
@@ -213,14 +247,16 @@ public sealed class GalleryDlService
     }
 
     private async Task DownloadWithToolAsync(
-        string url,
+        IReadOnlyList<string> urls,
         string dest,
         int fileCount,
         DuplicateChoice duplicate,
         bool wholeProfile,
         IProgress<FetchProgress> progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int offset = 0)
     {
+        var url = urls[0];
         var tools = await ToolBootstrapper.EnsureAsync(new Progress<string>(_ =>
         {
             progress.Report(new FetchProgress { Status = "tools" });
@@ -247,7 +283,13 @@ public sealed class GalleryDlService
             args.AddRange(["-o", "extractor.instagram.include=" + InstagramEverything]);
         AddHostOptions(args, url);
         args.AddRange(cookies.Arguments);
-        args.Add(url);
+
+        // A profile's videos can be too many links for one command line.
+        using var links = new LinkFile(urls);
+        if (urls.Count > 1)
+            args.AddRange(["-o", "extractor.instagram.sleep-request=1.0-2.0", "--input-file", links.Path]);
+        else
+            args.Add(url);
 
         var clock = System.Diagnostics.Stopwatch.StartNew();
         using var moving = new CancellationTokenSource();
@@ -261,12 +303,13 @@ public sealed class GalleryDlService
                 if (LooksLikeSavedFile(line))
                 {
                     done++;
-                    var total = Math.Max(fileCount, done);
+                    var shown = offset + done;
+                    var total = Math.Max(fileCount, shown);
                     progress.Report(new FetchProgress
                     {
-                        Percent = total == 0 ? 0 : 100.0 * done / total,
+                        Percent = total == 0 ? 0 : 100.0 * shown / total,
                         HasPercent = true,
-                        Status = BatchStatus(done, total, 0, clock.Elapsed)
+                        Status = BatchStatus(shown, total, 0, clock.Elapsed)
                     });
                 }
             }, cancellationToken).ConfigureAwait(false);
@@ -315,15 +358,34 @@ public sealed class GalleryDlService
                 {
                     staging.MoveTo(dest, duplicate);
                 }
-                catch (IOException)
+                catch (Exception ex) when (ex is IOException or InvalidOperationException)
                 {
-                    // The tool still holds that file; the next round takes it.
+                    // The tool still holds that file; the last move reports real problems.
+                    AppLog.Info($"Will retry moving files: {ex.Message}");
                 }
             }
         }
         catch (OperationCanceledException)
         {
             // The tool finished.
+        }
+    }
+
+    private sealed class LinkFile : IDisposable
+    {
+        public string Path { get; }
+
+        public LinkFile(IReadOnlyList<string> urls)
+        {
+            Path = urls.Count > 1 ? System.IO.Path.GetTempFileName() : "";
+            if (urls.Count > 1)
+                File.WriteAllLines(Path, urls);
+        }
+
+        public void Dispose()
+        {
+            if (Path.Length > 0)
+                HttpFetch.TryDelete(Path);
         }
     }
 

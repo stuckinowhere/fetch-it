@@ -17,6 +17,9 @@ public sealed class MediaItem
     /// <summary>Second URL to try when <see cref="DownloadUrl"/> cannot be reached (e.g. a smaller preview).</summary>
     public string? FallbackUrl { get; init; }
 
+    /// <summary>Post link for media the tool must fetch itself (split video and audio).</summary>
+    public string? ToolUrl { get; init; }
+
     /// <summary>Relative save path (may include sub folders). Null uses the default title_N naming.</summary>
     public string? SaveName { get; init; }
 

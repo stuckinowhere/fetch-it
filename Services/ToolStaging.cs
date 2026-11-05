@@ -13,7 +13,7 @@ internal sealed class ToolStaging : IDisposable
 {
     // Partial downloads, plus yt-dlp's unmerged streams and merge output.
     private static readonly Regex Unfinished = new(
-        @"(\.part|\.ytdl|\.temp|\.tmp|\.part-Frag\d+|\.f\d+\.(mp4|webm|m4a|mkv)|\.temp\.[^.]+)$",
+        @"(\.part|\.ytdl|\.temp|\.tmp|\.part-Frag\d+|\.f[\w-]+\.(mp4|webm|m4a|mkv)|\.temp\.[^.]+)$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     private static readonly TimeSpan LeftoverAge = TimeSpan.FromDays(1);
@@ -59,6 +59,10 @@ internal sealed class ToolStaging : IDisposable
                     Directory.CreateDirectory(parent);
                 File.Move(file, target, overwrite: duplicate == DuplicateChoice.Overwrite);
                 moved++;
+            }
+            catch (FileNotFoundException) when (!File.Exists(file))
+            {
+                // A tool renamed it while merging; it comes back under its final name.
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException or FileNotFoundException or DirectoryNotFoundException)
             {

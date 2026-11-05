@@ -198,6 +198,17 @@ public class ParserTests
     }
 
     [Fact]
+    public void Split_videos_are_kept_for_the_tool_with_their_post_link()
+    {
+        var probe = GalleryDlParser.Parse("""[[3, "ytdl:https://www.instagram.com/p/abc/", {"category":"instagram","filename":"207","extension":"mp4"}]]""");
+        var item = Assert.Single(probe.Items);
+        Assert.Null(item.DownloadUrl);
+        Assert.Equal("https://www.instagram.com/p/abc/", item.ToolUrl);
+        Assert.Equal(MediaKind.Video, item.Kind);
+        Assert.True(GalleryDlService.CanDownloadDirect(probe));
+    }
+
+    [Fact]
     public void Other_sites_keep_the_default_names()
     {
         var probe = GalleryDlParser.Parse("""[[3, "https://x.example/a.jpg", {"category":"twitter","filename":"a","extension":"jpg"}]]""");

@@ -110,6 +110,8 @@ public class ToolStagingTests : IDisposable
 
     [Theory]
     [InlineData("video.f395.mp4")]
+    [InlineData("2079250363894142957.fdash-6187109168039621v.mp4")]
+    [InlineData("2079250363894142957.fdash-1234a.m4a")]
     [InlineData("video.f251.webm")]
     [InlineData("video.temp.mp4")]
     [InlineData("video.mp4.part-Frag12")]

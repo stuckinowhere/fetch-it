@@ -201,6 +201,34 @@ public class SaveClashTests
         };
 
     [Fact]
+    public void Tool_posts_are_unique_and_skip_saved_videos()
+    {
+        var dest = Path.Combine(Path.GetTempPath(), "fetchit-posts-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dest);
+        try
+        {
+            File.WriteAllText(Path.Combine(dest, "old.mp4"), "x");
+            var probe = new MediaProbe
+            {
+                Items =
+                [
+                    new MediaItem { Kind = MediaKind.Video, SaveName = "old.mp4", ToolUrl = "https://www.instagram.com/p/old/" },
+                    new MediaItem { Kind = MediaKind.Video, SaveName = "a.mp4", ToolUrl = "https://www.instagram.com/p/new/" },
+                    new MediaItem { Kind = MediaKind.Video, SaveName = "b.mp4", ToolUrl = "https://www.instagram.com/p/new/" },
+                    new MediaItem { Kind = MediaKind.Image, DownloadUrl = "https://cdn.example/c.jpg" }
+                ]
+            };
+
+            Assert.Equal(["https://www.instagram.com/p/new/"], GalleryDlService.ToolPosts(dest, probe, DuplicateChoice.Skip));
+            Assert.Equal(2, GalleryDlService.ToolPosts(dest, probe, DuplicateChoice.KeepBoth).Count);
+        }
+        finally
+        {
+            Directory.Delete(dest, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Skip_plans_only_the_files_not_saved_yet()
     {
         var dest = Path.Combine(Path.GetTempPath(), "fetchit-skip-" + Guid.NewGuid().ToString("N"));
