@@ -61,7 +61,7 @@ public static class L
     public static string Download => T("Download");
     public static string OpenFolder => T("Open folder");
     public static string Downloads => T("Downloads");
-    public static string Footer => "© 2026 stuckinowhere · MIT";
+    public static string Footer => $"fetch it {AppVersion.Current.ToString(3)} · © 2026 stuckinowhere · MIT";
     public static string More(int count) => Format("+{0} more", count);
 
     // Dialogs
