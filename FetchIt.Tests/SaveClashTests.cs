@@ -1,6 +1,5 @@
 using FetchIt.Models;
 using FetchIt.Services;
-using FetchIt.Views;
 
 namespace FetchIt.Tests;
 
@@ -258,11 +257,56 @@ public class SaveClashTests
     }
 
     [Fact]
-    public void Duplicate_prompt_names_the_folder_and_files()
+    public void Only_site_ids_identify_a_file()
     {
-        var text = DuplicateWindow.Describe("Descargas", ["one.jpg", "two.jpg"]);
-        Assert.Contains("already in Descargas", text);
-        Assert.Contains("one.jpg", text);
-        Assert.Contains("Skip, keep both copies, or replace them?", text);
+        var ids = new MediaProbe
+        {
+            Items =
+            [
+                new MediaItem { Kind = MediaKind.Image, SaveName = "123_n.jpg" },
+                new MediaItem { Kind = MediaKind.Video, SaveName = "AQM.mp4" }
+            ]
+        };
+        var titles = new MediaProbe
+        {
+            Title = "clip",
+            Engine = EngineKind.YtDlp,
+            Items = [new MediaItem { Kind = MediaKind.Video, Title = "clip" }]
+        };
+
+        Assert.True(SaveClash.NamesIdentifyFiles(ids));
+        Assert.False(SaveClash.NamesIdentifyFiles(titles));
+        Assert.False(SaveClash.NamesIdentifyFiles(new MediaProbe { Title = "clip", Engine = EngineKind.YtDlp }));
+    }
+
+    [Fact]
+    public void Replacing_fetches_every_file_again()
+    {
+        var dest = Path.Combine(Path.GetTempPath(), "fetchit-replace-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dest);
+        try
+        {
+            File.WriteAllText(Path.Combine(dest, "old.jpg"), "x");
+            File.WriteAllText(Path.Combine(dest, "old.mp4"), "x");
+            var probe = new MediaProbe
+            {
+                Engine = EngineKind.GalleryDl,
+                ImageCount = 1,
+                Items =
+                [
+                    new MediaItem { Kind = MediaKind.Image, SaveName = "old.jpg", DownloadUrl = "https://cdn.example/old.jpg" },
+                    new MediaItem { Kind = MediaKind.Video, SaveName = "old.mp4", ToolUrl = "https://www.instagram.com/p/old/" }
+                ]
+            };
+
+            var job = Assert.Single(GalleryDlService.PlanDirectFiles(dest, probe, DuplicateChoice.Overwrite));
+
+            Assert.Equal(Path.Combine(dest, "old.jpg"), job.Path);
+            Assert.Equal(["https://www.instagram.com/p/old/"], GalleryDlService.ToolPosts(dest, probe, DuplicateChoice.Overwrite));
+        }
+        finally
+        {
+            Directory.Delete(dest, recursive: true);
+        }
     }
 }

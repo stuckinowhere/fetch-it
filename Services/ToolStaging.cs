@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using FetchIt.Models;
 
@@ -37,6 +38,16 @@ internal sealed class ToolStaging : IDisposable
     }
 
     /// <summary>Move every finished file to <paramref name="dest"/>, keeping sub folders.</summary>
+    internal static bool SameBytes(string first, string second)
+    {
+        if (!File.Exists(second) || new FileInfo(first).Length != new FileInfo(second).Length)
+            return false;
+
+        using var a = File.OpenRead(first);
+        using var b = File.OpenRead(second);
+        return SHA256.HashData(a).SequenceEqual(SHA256.HashData(b));
+    }
+
     public int MoveTo(string dest, DuplicateChoice duplicate)
     {
         var moved = 0;
@@ -51,13 +62,14 @@ internal sealed class ToolStaging : IDisposable
 
             try
             {
-                var target = duplicate == DuplicateChoice.Overwrite
-                    ? Path.Combine(dest, relative)
+                var saved = Path.Combine(dest, relative);
+                var target = duplicate == DuplicateChoice.Overwrite || SameBytes(file, saved)
+                    ? saved
                     : SaveClash.UniquePath(dest, relative);
                 var parent = Path.GetDirectoryName(target);
                 if (!string.IsNullOrEmpty(parent))
                     Directory.CreateDirectory(parent);
-                File.Move(file, target, overwrite: duplicate == DuplicateChoice.Overwrite);
+                File.Move(file, target, overwrite: true);
                 moved++;
             }
             catch (FileNotFoundException) when (!File.Exists(file))

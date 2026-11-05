@@ -9,6 +9,14 @@ public static class SaveClash
     internal static bool IsVideoName(string name)
         => VideoExtensions.Contains(Path.GetExtension(name), StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// True when every name comes from the site's own id, so the same name is
+    /// the same file. Other names come from a title, which two different
+    /// items can share.
+    /// </summary>
+    internal static bool NamesIdentifyFiles(MediaProbe probe)
+        => probe.Items.Count > 0 && probe.Items.All(item => !string.IsNullOrWhiteSpace(item.SaveName));
+
     public static IReadOnlyList<string> PlannedNames(MediaProbe probe)
     {
         if (probe.Engine == EngineKind.YtDlp)

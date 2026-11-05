@@ -15,7 +15,6 @@ public interface IUiHost
     Task<bool> SignInInstagramAsync(CancellationToken cancellationToken);
     Task ShowUpdateAsync(UpdateCheckResult result);
     Task ShowAlertAsync(string heading, string message, bool isError);
-    Task<DuplicateChoice> AskIfAlreadySavedAsync(string folderLabel, IReadOnlyList<string> names);
     Task<string?> AskQualityAsync(string title, IReadOnlyList<MediaQuality> qualities);
     Task<bool> AskPasteLinkAsync(string link);
     Task ShowAccountAsync();
@@ -306,28 +305,12 @@ public partial class MainViewModel : ObservableObject
             }
         }
 
+        // The same file is replaced, with nothing to ask. A name taken from a title
+        // proves nothing, so that file keeps both copies unless the bytes match.
+        var duplicate = SaveClash.NamesIdentifyFiles(probe) ? DuplicateChoice.Overwrite : DuplicateChoice.KeepBoth;
         var existing = SaveClash.ExistingNames(FolderPath, probe);
-        var duplicate = DuplicateChoice.KeepBoth;
         if (existing.Count > 0)
-        {
-            if (AddsOnlyNewFiles(Url))
-                duplicate = DuplicateChoice.Skip;
-            else if (Ui is null)
-                duplicate = DuplicateChoice.KeepBoth;
-            else
-                duplicate = await Ui.AskIfAlreadySavedAsync(FolderLabel, existing);
-
             AppLog.Info($"already saved: {existing.Count} of {probe.FileCount}; choice {duplicate}");
-            if (duplicate == DuplicateChoice.Cancel)
-                return;
-            // Skip means "keep what I have": download the rest, if there is any.
-            if (duplicate == DuplicateChoice.Skip && existing.Count >= SaveClash.PlannedNames(probe).Count)
-            {
-                ShowOk(L.Format("Already in {0}.", FolderLabel));
-                OfferSeparate(probe);
-                return;
-            }
-        }
 
         IsBusy = true;
         HideStatus();
@@ -363,9 +346,6 @@ public partial class MainViewModel : ObservableObject
             IsBusy = false;
         }
     }
-
-    /// <summary>A repeat run of a whole profile adds what is new, with nothing to ask.</summary>
-    internal static bool AddsOnlyNewFiles(string url) => MediaRouter.InstagramProfileUrl(url) is not null;
 
     // Only what this download saved: the folder also holds the user's other files.
     private void OfferSeparate(MediaProbe probe)

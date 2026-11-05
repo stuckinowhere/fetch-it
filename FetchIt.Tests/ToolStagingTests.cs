@@ -97,6 +97,42 @@ public class ToolStagingTests : IDisposable
     }
 
     [Fact]
+    public void Same_title_with_other_content_keeps_both()
+    {
+        File.WriteAllText(Path.Combine(_dest, "a.mp4"), "another video");
+        using var staging = Stage("a.mp4");
+
+        staging.MoveTo(_dest, DuplicateChoice.KeepBoth);
+
+        Assert.Equal("another video", File.ReadAllText(Path.Combine(_dest, "a.mp4")));
+        Assert.True(File.Exists(Path.Combine(_dest, "a_2.mp4")));
+    }
+
+    [Fact]
+    public void Same_bytes_replace_the_saved_file_instead_of_a_copy()
+    {
+        using var staging = Stage("a.mp4");
+        var staged = Directory.GetFiles(staging.Folder).Single();
+        File.Copy(staged, Path.Combine(_dest, "a.mp4"));
+
+        staging.MoveTo(_dest, DuplicateChoice.KeepBoth);
+
+        Assert.Single(Directory.GetFiles(_dest));
+    }
+
+    [Fact]
+    public void Overwrite_replaces_saved_files_without_a_copy()
+    {
+        File.WriteAllText(Path.Combine(_dest, "a.jpg"), "old");
+        using var staging = Stage("a.jpg");
+
+        Assert.Equal(1, staging.MoveTo(_dest, DuplicateChoice.Overwrite));
+
+        Assert.NotEqual("old", File.ReadAllText(Path.Combine(_dest, "a.jpg")));
+        Assert.Single(Directory.GetFiles(_dest));
+    }
+
+    [Fact]
     public void Skip_leaves_files_that_are_already_saved()
     {
         File.WriteAllText(Path.Combine(_dest, "a.jpg"), "old");

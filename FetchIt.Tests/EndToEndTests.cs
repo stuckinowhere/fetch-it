@@ -134,8 +134,6 @@ public class EndToEndTests(ITestOutputHelper output)
             Alerts.Add($"{heading}: {message}");
             return Task.CompletedTask;
         }
-        public Task<DuplicateChoice> AskIfAlreadySavedAsync(string folderLabel, IReadOnlyList<string> names)
-            => Task.FromResult(DuplicateChoice.Overwrite);
         public Task<string?> AskQualityAsync(string title, IReadOnlyList<MediaQuality> qualities)
             => Task.FromResult<string?>(qualities.Count > 0 ? qualities[0].Url : null);
         public Task<bool> AskPasteLinkAsync(string link) => Task.FromResult(false);

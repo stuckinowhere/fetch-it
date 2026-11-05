@@ -59,14 +59,6 @@ public class MainViewModelTests
         Assert.Contains("120", vm.Summary);
     }
 
-    [Theory]
-    [InlineData("https://www.instagram.com/_namaskar_/", true)]
-    [InlineData("https://www.instagram.com/stories/_namaskar_/", true)]
-    [InlineData("https://www.instagram.com/p/abc/", false)]
-    [InlineData("https://www.youtube.com/watch?v=1", false)]
-    public void Only_whole_profiles_skip_the_duplicate_question(string url, bool expected)
-        => Assert.Equal(expected, MainViewModel.AddsOnlyNewFiles(url));
-
     [Fact]
     public void Gallery_links_get_time_to_list_every_file()
     {
@@ -118,9 +110,6 @@ public class MainViewModelTests
             Alerts.Add((heading, message, isError));
             return Task.CompletedTask;
         }
-
-        public Task<DuplicateChoice> AskIfAlreadySavedAsync(string folderLabel, IReadOnlyList<string> names)
-            => Task.FromResult(DuplicateChoice.Skip);
 
         public Task<string?> AskQualityAsync(string title, IReadOnlyList<MediaQuality> qualities)
             => Task.FromResult<string?>(qualities.Count > 0 ? qualities[0].Url : null);
