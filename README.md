@@ -53,7 +53,7 @@ If PowerShell blocks scripts: `Set-ExecutionPolicy -Scope Process Bypass`.
 - **Download** (or Ctrl+Enter) — save files after Fetch finishes. Shows speed and how much is left. Becomes **Stop** while saving. When done, **Open folder** takes you to the files.
 - **Set aside without people** — after a download of several files, check them on this PC and move those with no people into a subfolder to review. Nothing is deleted and nothing is uploaded. The first run fetches a 36 MB detector ([YOLOX](https://github.com/Megvii-BaseDetection/YOLOX), Apache-2.0).
 - The window reopens where you left it, on the same screen.
-- Folder icon — where files go. Defaults to your Windows Downloads folder (including if you moved it). Remembers the last folder you pick.
+- Folder icon — where files go. Defaults to your Windows Downloads folder (including if you moved it). Remembers the last folder you pick. A whole Instagram profile goes in a subfolder named after the user.
 - Theme icon — light or dark.
 - Update icon — check GitHub Releases. On launch the app does this quietly and only prompts when a newer setup exists. **Install** downloads the setup (or the zip for a portable copy), checks it against the release `SHA256SUMS.txt`, runs it, and reopens the app.
 - Account icon — sign in to Instagram or sign out. Sign-in opens a real Chrome window with its own temporary profile, separate from your normal Chrome, which closes by itself once you are in. Without Chrome, a small built-in window is used. The session stays saved (encrypted for your Windows user) and is reused until it expires or Instagram rejects it. No password is stored. Instagram also asks you to sign in on the first link if you have not. Chrome can stay open.
