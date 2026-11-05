@@ -307,7 +307,9 @@ public partial class MainViewModel : ObservableObject
         var duplicate = DuplicateChoice.KeepBoth;
         if (existing.Count > 0)
         {
-            if (Ui is null)
+            if (AddsOnlyNewFiles(Url))
+                duplicate = DuplicateChoice.Skip;
+            else if (Ui is null)
                 duplicate = DuplicateChoice.KeepBoth;
             else
                 duplicate = await Ui.AskIfAlreadySavedAsync(FolderLabel, existing);
@@ -356,6 +358,9 @@ public partial class MainViewModel : ObservableObject
             IsBusy = false;
         }
     }
+
+    /// <summary>A repeat run of a whole profile adds what is new, with nothing to ask.</summary>
+    internal static bool AddsOnlyNewFiles(string url) => MediaRouter.InstagramProfileUrl(url) is not null;
 
     public async Task PasteIfEmptyAsync()
     {
