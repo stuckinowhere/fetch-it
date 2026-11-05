@@ -6,6 +6,14 @@ public static class SaveClash
 {
     private static readonly string[] VideoExtensions = [".mp4", ".mkv", ".webm", ".m4a", ".mov"];
 
+    /// <summary>
+    /// True when every name comes from the site's own id, so the same name is
+    /// the same file. Other names come from a title, which two different
+    /// items can share.
+    /// </summary>
+    internal static bool NamesIdentifyFiles(MediaProbe probe)
+        => probe.Items.Count > 0 && probe.Items.All(item => !string.IsNullOrWhiteSpace(item.SaveName));
+
     public static IReadOnlyList<string> PlannedNames(MediaProbe probe)
     {
         if (probe.Engine == EngineKind.YtDlp)

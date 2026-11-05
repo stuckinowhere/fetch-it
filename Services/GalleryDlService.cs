@@ -110,7 +110,7 @@ public sealed class GalleryDlService
 
             if (posts.Count > 0)
             {
-                await DownloadWithToolAsync(posts, dest, grandTotal, DuplicateChoice.Skip, false, progress, cancellationToken, offset: jobs.Count, videosOnly: true)
+                await DownloadWithToolAsync(posts, dest, grandTotal, duplicate, false, progress, cancellationToken, offset: jobs.Count, videosOnly: true)
                     .ConfigureAwait(false);
             }
 
@@ -272,10 +272,6 @@ public sealed class GalleryDlService
         if (string.IsNullOrEmpty(tools.GalleryDl))
             throw new InvalidOperationException(ShortError(url, ""));
 
-        // Instagram names are unique ids, so a repeat run only adds what is new
-        // (today's stories, say) instead of a _2 copy of every photo.
-        var moveAs = wholeProfile ? DuplicateChoice.Skip : duplicate;
-
         var done = 0;
         var social = MediaRouter.TryParseHttpUrl(url, out var uri) && MediaRouter.IsSocialPostHost(uri);
         using var cookies = SessionCookies.BindForTool(social);
@@ -306,7 +302,7 @@ public sealed class GalleryDlService
 
         var clock = System.Diagnostics.Stopwatch.StartNew();
         using var moving = new CancellationTokenSource();
-        var mover = MoveWhileRunningAsync(staging, dest, moveAs, moving.Token);
+        var mover = MoveWhileRunningAsync(staging, dest, duplicate, moving.Token);
 
         int code;
         try
@@ -332,14 +328,14 @@ public sealed class GalleryDlService
         {
             moving.Cancel();
             await mover.ConfigureAwait(false);
-            staging.MoveTo(dest, moveAs); // Keep what finished before Stop.
+            staging.MoveTo(dest, duplicate); // Keep what finished before Stop.
             throw;
         }
 
         moving.Cancel();
         await mover.ConfigureAwait(false);
         progress.Report(new FetchProgress { Status = "Saving…" });
-        done = Math.Max(done, staging.MoveTo(dest, moveAs));
+        done = Math.Max(done, staging.MoveTo(dest, duplicate));
         EnsureToolSucceeded(code, done, fileCount);
     }
 
