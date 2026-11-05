@@ -164,17 +164,27 @@
 
                 <ScrollViewer IsVisible="{Binding HasManyPreviews}"
                               HorizontalScrollBarVisibility="Disabled">
-                    <ItemsControl ItemsSource="{Binding PreviewCards}">
+                    <ItemsControl ItemsSource="{Binding PreviewRows}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:PreviewRow">
+                                <ItemsControl ItemsSource="{Binding Cards}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <WrapPanel />
+                                    <StackPanel Orientation="Horizontal" />
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:PreviewCard">
                                     <controls:Card Width="{Binding TileWidth}"
                                                    Margin="0,0,16,16"
-                                                   Padding="0">
+                                                   Padding="0"
+                                                   AttachedToVisualTree="OnTileShown"
+                                                   DetachedFromVisualTree="OnTileHidden">
                                         <StackPanel>
                                             <Panel Height="{Binding TileImageHeight}"
                                                    ClipToBounds="True">
@@ -198,13 +208,16 @@
                                                        Margin="12,8,12,12"
                                                        TextWrapping="Wrap"
                                                        TextTrimming="CharacterEllipsis"
-                                                       MaxHeight="40"
+                                                       Height="40"
                                                        FontSize="14"
                                                        FontWeight="Medium" />
                                         </StackPanel>
                                     </controls:Card>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </ScrollViewer>
             </Grid>

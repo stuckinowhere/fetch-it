@@ -10,9 +10,31 @@ public static class GalleryDlParser
         "mp4", "webm", "mkv", "mov", "m4v", "avi", "m3u8"
     };
 
-    public static MediaProbe Parse(string json)
+    internal const int MaxListedTitle = 200;
+
+    public static MediaProbe Parse(string json) => Build(ParseItems(json), partial: false);
+
+    /// <summary>One file per line, as written during a long listing. A cut-off last line is dropped.</summary>
+    public static MediaProbe ParseLines(IEnumerable<string> lines, bool partial)
     {
-        var parsed = ParseItems(json);
+        var found = new List<(MediaItem, string, string)>();
+        foreach (var line in lines)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(line);
+                TryAdd(doc.RootElement, found, ReadString(doc.RootElement, "_url"));
+            }
+            catch (JsonException)
+            {
+            }
+        }
+
+        return Build(found, partial);
+    }
+
+    private static MediaProbe Build(List<(MediaItem Media, string Title, string Site)> parsed, bool partial)
+    {
         var title = parsed.Select(item => item.Title).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t)) ?? "post";
         var site = parsed.Select(item => item.Site).FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? "Gallery";
         // Tabs overlap (a reel is also a post), so one file can be listed twice.
@@ -30,7 +52,8 @@ public static class GalleryDlParser
             VideoCount = videos,
             ImageCount = images,
             Engine = EngineKind.GalleryDl,
-            Items = items
+            Items = items,
+            IsPartial = partial
         };
     }
 
@@ -133,7 +156,7 @@ public static class GalleryDlParser
         var item = new MediaItem
         {
             Kind = isVideo ? MediaKind.Video : MediaKind.Image,
-            Title = title,
+            Title = title.Length > MaxListedTitle ? title[..MaxListedTitle] : title,
             Duration = ReadDuration(el),
             ThumbnailUrl = ThumbnailFor(el, url, isVideo),
             DownloadUrl = HttpsOrNull(url),

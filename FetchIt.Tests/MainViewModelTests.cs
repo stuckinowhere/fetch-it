@@ -62,7 +62,7 @@ public class MainViewModelTests
     [Fact]
     public void Gallery_links_get_time_to_list_every_file()
     {
-        Assert.Equal(1800, MainViewModel.ProbeSeconds("https://www.instagram.com/_namaskar_/"));
+        Assert.Equal(1800, MainViewModel.ProbeSeconds("https://www.instagram.com/p/abc/"));
         Assert.Equal(35, MainViewModel.ProbeSeconds("https://www.youtube.com/watch?v=1"));
     }
 
