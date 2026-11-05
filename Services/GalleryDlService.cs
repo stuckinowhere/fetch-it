@@ -7,14 +7,15 @@ public sealed class GalleryDlService
     public async Task<MediaProbe> ProbeAsync(
         string url,
         IProgress<FetchProgress>? progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool wholeProfile = false)
     {
         progress?.Report(new FetchProgress { Status = "Getting tools…" });
         var tools = await ToolBootstrapper.EnsureAsync(new Progress<string>(_ =>
         {
             progress?.Report(new FetchProgress { Status = "Getting tools…" });
         }), cancellationToken).ConfigureAwait(false);
-        progress?.Report(new FetchProgress { Status = "Reading link…" });
+        progress?.Report(new FetchProgress { Status = wholeProfile ? "Reading the whole profile…" : "Reading link…" });
         if (string.IsNullOrEmpty(tools.GalleryDl))
             throw new InvalidOperationException(ShortError(url, ""));
 
@@ -22,17 +23,19 @@ public sealed class GalleryDlService
         using var cookies = SessionCookies.BindForTool(social);
         var args = new List<string>
         {
-            "--dump-json",
+            // A profile is a list of tabs; -J follows them instead of naming them.
+            wholeProfile ? "--resolve-json" : "--dump-json",
             "--no-download",
-            "--range", $"1-{ProbeFileLimit}",
-            "-o", "extractor.instagram.sleep-request=0"
+            "-o", "extractor.instagram.sleep-request=1.0-2.0"
         };
+        if (wholeProfile)
+            args.AddRange(["-o", "extractor.instagram.include=" + InstagramEverything]);
         AddHostOptions(args, url);
         args.AddRange(cookies.Arguments);
         args.Add(url);
 
         var text = await ProcessRunner.RunTextAsync(
-            tools.GalleryDl, args, cancellationToken, timeout: TimeSpan.FromSeconds(15))
+            tools.GalleryDl, args, cancellationToken, timeout: ReadLimit)
             .ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(text) || LooksLikeFailure(text))
         {
@@ -40,7 +43,6 @@ public sealed class GalleryDlService
             throw new InvalidOperationException(ShortError(url, text));
         }
         var probe = GalleryDlParser.Parse(text);
-        probe.MayHaveMore = probe.Items.Count >= ProbeFileLimit;
         if (probe.FileCount > 0 && probe.Items.Count > 0)
             return probe;
         throw new InvalidOperationException(ShortError(url, text));
@@ -59,15 +61,15 @@ public sealed class GalleryDlService
         if (!FolderStore.CanWrite(dest))
             throw new InvalidOperationException("Windows blocked that folder. Pick another save folder.");
 
-        // The preview only holds posts, so a whole profile must go through the tool.
-        var jobs = PlanDirectFiles(dest, probe, duplicate);
-        if (!wholeProfile && CanDownloadDirect(probe, jobs))
+        if (CanDownloadDirect(probe))
         {
-            await DownloadDirectAsync(jobs, progress, cancellationToken).ConfigureAwait(false);
+            var jobs = PlanDirectFiles(dest, probe, duplicate);
+            if (jobs.Count > 0)
+                await DownloadDirectAsync(jobs, progress, cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        await DownloadWithToolAsync(url, dest, probe, duplicate, wholeProfile, progress, cancellationToken).ConfigureAwait(false);
+        await DownloadWithToolAsync(url, dest, probe.FileCount, duplicate, wholeProfile, progress, cancellationToken).ConfigureAwait(false);
     }
 
     // Everything a signed-in account can see on a profile, as files. No "info":
@@ -76,16 +78,13 @@ public sealed class GalleryDlService
 
     internal const int DirectParallel = 4;
 
-    // Probe uses gallery-dl --range 1-N so Fetch stays fast. Hitting this
-    // count means the album may be larger; Download must use the tool.
-    internal const int ProbeFileLimit = 50;
+    // Reading a large profile takes minutes; the Stop button is the user's limit.
+    internal static readonly TimeSpan ReadLimit = TimeSpan.FromMinutes(30);
 
-    internal static bool CanDownloadDirect(
-        MediaProbe probe,
-        IReadOnlyList<(string Url, string Path)> jobs)
-        => jobs.Count > 0
-           && jobs.Count == probe.Items.Count
-           && probe.Items.Count < ProbeFileLimit;
+    // Fetch lists every file, so Download only needs a link for each of them.
+    internal static bool CanDownloadDirect(MediaProbe probe)
+        => probe.Items.Count > 0
+           && probe.Items.All(item => MediaRouter.TryParseHttpUrl(item.DownloadUrl, out _));
 
     internal static IReadOnlyList<(string Url, string Path)> PlanDirectFiles(
         string dest,
@@ -103,6 +102,9 @@ public sealed class GalleryDlService
             var fileName = i < planned.Count
                 ? planned[i]
                 : $"{MediaRouter.SanitizeFolderName(probe.Title)}_{i + 1}.jpg";
+            if (duplicate == DuplicateChoice.Skip && File.Exists(Path.Combine(dest, fileName)))
+                continue;
+
             var path = duplicate == DuplicateChoice.KeepBoth
                 ? SaveClash.UniquePath(dest, fileName)
                 : Path.Combine(dest, fileName);
@@ -182,7 +184,7 @@ public sealed class GalleryDlService
     private async Task DownloadWithToolAsync(
         string url,
         string dest,
-        MediaProbe probe,
+        int fileCount,
         DuplicateChoice duplicate,
         bool wholeProfile,
         IProgress<FetchProgress> progress,
@@ -195,9 +197,6 @@ public sealed class GalleryDlService
 
         if (string.IsNullOrEmpty(tools.GalleryDl))
             throw new InvalidOperationException(ShortError(url, ""));
-
-        var fileCount = probe.FileCount;
-        var openEnded = wholeProfile || probe.MayHaveMore;
 
         // Instagram names are unique ids, so a repeat run only adds what is new
         // (today's stories, say) instead of a _2 copy of every photo.
@@ -227,13 +226,6 @@ public sealed class GalleryDlService
                 if (LooksLikeSavedFile(line))
                 {
                     done++;
-                    if (openEnded)
-                    {
-                        // The total is unknown, so no percentage to invent.
-                        progress.Report(new FetchProgress { Status = $"{done} files" });
-                        return;
-                    }
-
                     var total = Math.Max(fileCount, done);
                     progress.Report(new FetchProgress
                     {
@@ -252,17 +244,15 @@ public sealed class GalleryDlService
 
         progress.Report(new FetchProgress { Status = "Saving…" });
         done = Math.Max(done, staging.MoveTo(dest, moveAs));
-        EnsureToolSucceeded(code, done, fileCount, openEnded);
+        EnsureToolSucceeded(code, done, fileCount);
     }
 
-    internal static void EnsureToolSucceeded(int code, int done, int fileCount, bool openEnded = false)
+    internal static void EnsureToolSucceeded(int code, int done, int fileCount)
     {
         if (code == 0)
             return;
         if (done <= 0)
             throw new InvalidOperationException("Could not save those files.");
-        if (openEnded)
-            throw new InvalidOperationException($"Saved {done} files, but some could not be read.");
         var total = Math.Max(fileCount, done);
         throw new InvalidOperationException($"Saved {done} of {total} files.");
     }

@@ -40,10 +40,9 @@ public sealed class MediaFetcher
         var first = MediaRouter.Prefer(uri);
         try
         {
-            var probe = await RunProbe(first, publicUrl, progress, cancellationToken).ConfigureAwait(false);
-            if (MediaRouter.InstagramProfileUrl(url) is not null)
-                probe.MayHaveMore = true; // The preview only reads the posts tab.
-            return probe;
+            if (MediaRouter.InstagramProfileUrl(url) is { } profile)
+                return await _gallery.ProbeAsync(profile, progress, cancellationToken, wholeProfile: true).ConfigureAwait(false);
+            return await RunProbe(first, publicUrl, progress, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {

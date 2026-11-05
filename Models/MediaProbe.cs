@@ -41,8 +41,6 @@ public enum EngineKind
 
 public sealed class MediaProbe
 {
-    public const int PreviewCap = 50;
-
     public string Title { get; init; } = "";
     public string Site { get; init; } = "";
     public TimeSpan? Duration { get; init; }
@@ -52,13 +50,8 @@ public sealed class MediaProbe
     public IReadOnlyList<MediaItem> Items { get; init; } = [];
     public IReadOnlyList<MediaQuality> Qualities { get; init; } = [];
 
-    /// <summary>The preview is a sample: Download gets more than these items.</summary>
-    public bool MayHaveMore { get; set; }
-
     public bool HasVideo => VideoCount > 0;
     public int FileCount => VideoCount + ImageCount;
-    public int ExtraCount => Math.Max(0, Items.Count - PreviewCap);
-    public IEnumerable<MediaItem> PreviewItems => Items.Take(PreviewCap);
 
     public string Summary
     {
@@ -73,8 +66,6 @@ public sealed class MediaProbe
                 parts.Add(VideoCount == 1 ? Services.L.T("1 video") : Services.L.Format("{0} videos", VideoCount));
             if (ImageCount > 0)
                 parts.Add(ImageCount == 1 ? Services.L.T("1 image") : Services.L.Format("{0} images", ImageCount));
-            if (MayHaveMore)
-                parts.Add(Services.L.T("preview only, Download gets everything"));
             return string.Join("  ·  ", parts);
         }
     }

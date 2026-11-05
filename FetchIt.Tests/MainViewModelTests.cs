@@ -41,7 +41,7 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public void LoadMore_appends_next_chunk_and_updates_labels()
+    public void Every_item_is_shown_from_the_start()
     {
         var vm = new MainViewModel();
         var items = Enumerable.Range(1, 120)
@@ -55,19 +55,15 @@ public class MainViewModelTests
         };
 
         vm.ApplyProbe(probe);
-        Assert.Equal(50, vm.PreviewCards.Count);
-        Assert.True(vm.HasMore);
-        Assert.Equal("+70 more", vm.MoreLabel);
-
-        vm.LoadMoreCommand.Execute(null);
-        Assert.Equal(100, vm.PreviewCards.Count);
-        Assert.True(vm.HasMore);
-        Assert.Equal("+20 more", vm.MoreLabel);
-
-        vm.LoadMoreCommand.Execute(null);
         Assert.Equal(120, vm.PreviewCards.Count);
-        Assert.False(vm.HasMore);
-        Assert.Equal("", vm.MoreLabel);
+        Assert.Contains("120", vm.Summary);
+    }
+
+    [Fact]
+    public void Gallery_links_get_time_to_list_every_file()
+    {
+        Assert.Equal(1800, MainViewModel.ProbeSeconds("https://www.instagram.com/_namaskar_/"));
+        Assert.Equal(35, MainViewModel.ProbeSeconds("https://www.youtube.com/watch?v=1"));
     }
 
     [Fact]

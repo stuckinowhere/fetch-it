@@ -164,8 +164,7 @@
 
                 <ScrollViewer IsVisible="{Binding HasManyPreviews}"
                               HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel>
-                        <ItemsControl ItemsSource="{Binding PreviewCards}">
+                    <ItemsControl ItemsSource="{Binding PreviewCards}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <WrapPanel />
@@ -206,18 +205,7 @@
                                     </controls:Card>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <Button Classes="Flat"
-                                Content="{Binding MoreLabel}"
-                                Command="{Binding LoadMoreCommand}"
-                                IsVisible="{Binding HasMore}"
-                                FontFamily="{StaticResource Plex}"
-                                FontSize="14"
-                                FontWeight="Medium"
-                                Cursor="Hand"
-                                HorizontalAlignment="Center"
-                                Margin="0,4,0,12" />
-                    </StackPanel>
+                    </ItemsControl>
                 </ScrollViewer>
             </Grid>
 

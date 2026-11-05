@@ -167,14 +167,41 @@ public class ParserTests
     }
 
     [Fact]
-    public void PreviewCap_reports_extra()
+    public void Instagram_files_keep_their_id_and_overlapping_tabs_count_once()
     {
-        var items = Enumerable.Range(0, 52)
-            .Select(i => new MediaItem { Kind = MediaKind.Image, Title = $"{i}" })
-            .ToList();
-        var probe = new MediaProbe { Items = items, ImageCount = 52 };
-        Assert.Equal(2, probe.ExtraCount);
-        Assert.Equal(50, probe.PreviewItems.Count());
+        const string json = """
+            [
+              [3, "https://cdn.example/a.jpg", {"category":"instagram","filename":"643588901_n","extension":"webp"}],
+              [3, "https://cdn.example/a2.jpg", {"category":"instagram","filename":"643588901_n","extension":"webp"}],
+              [3, "https://cdn.example/b.mp4", {"category":"instagram","filename":"777_n","extension":"mp4"}],
+              [-1, {"error":"NotFoundError","message":"no stories"}]
+            ]
+            """;
+        var probe = GalleryDlParser.Parse(json);
+
+        Assert.Equal(["643588901_n.webp", "777_n.mp4"], probe.Items.Select(item => item.SaveName));
+        Assert.Equal(1, probe.ImageCount);
+        Assert.Equal(1, probe.VideoCount);
+    }
+
+    [Theory]
+    [InlineData("../../evil", "jpg")]
+    [InlineData("a/b", "jpg")]
+    [InlineData("a:b", "jpg")]
+    [InlineData("name", "e/xe")]
+    [InlineData("name", "toolong")]
+    public void Instagram_names_with_path_tricks_are_refused(string filename, string extension)
+    {
+        using var doc = System.Text.Json.JsonDocument.Parse(
+            System.Text.Json.JsonSerializer.Serialize(new { category = "instagram", filename, extension }));
+        Assert.Null(GalleryDlParser.InstagramSaveName(doc.RootElement, extension));
+    }
+
+    [Fact]
+    public void Other_sites_keep_the_default_names()
+    {
+        var probe = GalleryDlParser.Parse("""[[3, "https://x.example/a.jpg", {"category":"twitter","filename":"a","extension":"jpg"}]]""");
+        Assert.Null(Assert.Single(probe.Items).SaveName);
     }
 
     [Theory]

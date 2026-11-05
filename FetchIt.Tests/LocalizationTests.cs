@@ -53,18 +53,6 @@ public class LocalizationTests
     }
 
     [Fact]
-    public void Summary_says_when_the_count_is_only_a_preview()
-    {
-        var probe = new MediaProbe { Site = "Instagram", ImageCount = 50, MayHaveMore = true };
-        L.Language = "en";
-        Assert.Equal("Instagram  ·  50 images  ·  preview only, Download gets everything", probe.Summary);
-        using var _ = new Spanish();
-        Assert.Equal("Instagram  ·  50 imágenes  ·  solo vista previa, Descargar baja todo", probe.Summary);
-        Assert.Equal("120 archivos", L.Translate("120 files"));
-        Assert.Equal("Guardados 64 archivos, pero algunos no se pudieron leer.", L.Translate("Saved 64 files, but some could not be read."));
-    }
-
-    [Fact]
     public void Account_status_reads_in_both_languages()
     {
         L.Language = "en";
