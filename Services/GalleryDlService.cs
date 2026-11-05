@@ -109,7 +109,7 @@ public sealed class GalleryDlService
 
             if (posts.Count > 0)
             {
-                await DownloadWithToolAsync(posts, dest, grandTotal, DuplicateChoice.Skip, false, progress, cancellationToken, offset: jobs.Count)
+                await DownloadWithToolAsync(posts, dest, grandTotal, DuplicateChoice.Skip, false, progress, cancellationToken, offset: jobs.Count, videosOnly: true)
                     .ConfigureAwait(false);
             }
 
@@ -124,6 +124,11 @@ public sealed class GalleryDlService
     // Everything a signed-in account can see on a profile, as files. No "info":
     // that is metadata, not media.
     internal const string InstagramEverything = "avatar,posts,reels,stories,highlights,tagged";
+
+    internal const string InstagramFileName = "{filename}.{extension}";
+
+    // A post can mix photos and video; the photos already came from the list.
+    internal const string VideosOnlyFilter = "extension not in ('jpg', 'jpeg', 'png', 'webp', 'heic', 'gif')";
 
     internal const int DirectParallel = 4;
 
@@ -254,7 +259,8 @@ public sealed class GalleryDlService
         bool wholeProfile,
         IProgress<FetchProgress> progress,
         CancellationToken cancellationToken,
-        int offset = 0)
+        int offset = 0,
+        bool videosOnly = false)
     {
         var url = urls[0];
         var tools = await ToolBootstrapper.EnsureAsync(new Progress<string>(_ =>
@@ -284,10 +290,16 @@ public sealed class GalleryDlService
         AddHostOptions(args, url);
         args.AddRange(cookies.Arguments);
 
+        // Same names as the list, or repeat runs cannot recognise what is saved.
+        if (wholeProfile || videosOnly)
+            args.AddRange(["-o", "filename=" + InstagramFileName]);
+        if (videosOnly)
+            args.AddRange(["--filter", VideosOnlyFilter, "-o", "extractor.instagram.sleep-request=1.0-2.0"]);
+
         // A profile's videos can be too many links for one command line.
         using var links = new LinkFile(urls);
         if (urls.Count > 1)
-            args.AddRange(["-o", "extractor.instagram.sleep-request=1.0-2.0", "--input-file", links.Path]);
+            args.AddRange(["--input-file", links.Path]);
         else
             args.Add(url);
 
