@@ -56,7 +56,8 @@ public sealed class YtDlpService
         if (!FolderStore.CanWrite(dest))
             throw new InvalidOperationException("Windows blocked that folder. Pick another save folder.");
 
-        var output = OutputTemplate(dest, title, fileCount, duplicate);
+        using var staging = ToolStaging.Create();
+        var output = OutputTemplate(staging.Folder, title, fileCount, duplicate);
 
         var args = new List<string>
         {
@@ -73,25 +74,32 @@ public sealed class YtDlpService
         };
         if (fileCount > 1)
             args.Add("--yes-playlist");
-        if (duplicate == DuplicateChoice.Overwrite)
-            args.Add("--force-overwrites");
-        else
-            args.Add("--no-overwrites");
         args.Add(url);
 
-        var code = await ProcessRunner.RunAsync(tools.YtDlp, args, line =>
+        int code;
+        try
         {
-            var parsed = YtDlpParser.TryParseDownloadProgress(line);
-            if (parsed is null)
-                return;
-            progress.Report(new FetchProgress
+            code = await ProcessRunner.RunAsync(tools.YtDlp, args, line =>
             {
-                Percent = parsed.Value.Percent ?? 0,
-                HasPercent = parsed.Value.Percent is not null,
-                Status = parsed.Value.Status
-            });
-        }, cancellationToken).ConfigureAwait(false);
+                var parsed = YtDlpParser.TryParseDownloadProgress(line);
+                if (parsed is null)
+                    return;
+                progress.Report(new FetchProgress
+                {
+                    Percent = parsed.Value.Percent ?? 0,
+                    HasPercent = parsed.Value.Percent is not null,
+                    Status = parsed.Value.Status
+                });
+            }, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            staging.MoveTo(dest, duplicate); // Keep what finished before Stop.
+            throw;
+        }
 
+        progress.Report(new FetchProgress { Status = "Saving…" });
+        staging.MoveTo(dest, duplicate);
         if (code != 0)
             throw new InvalidOperationException("Could not fetch that video.");
     }
