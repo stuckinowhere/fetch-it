@@ -36,6 +36,8 @@ public static class MediaRouter
     public static string PublicOnlyMessage => "Only public profiles.";
     public static string InstagramSessionMessage =>
         "Instagram hid the posts. Sign in when asked. Chrome can stay open.";
+    public static string InstagramVideosMessage =>
+        "This Instagram link has only videos. Instagram saves photos only.";
     public static string BunkrHomeMessage =>
         "Paste a Bunkr file or album link, not the homepage.";
 

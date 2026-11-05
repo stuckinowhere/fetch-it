@@ -190,6 +190,8 @@ public static class L
         ["Update installed. Close fetch it and open it again."] = "Actualización instalada. Cierra fetch it y vuelve a abrirlo.",
         ["UPDATE INSTALLED"] = "ACTUALIZACIÓN INSTALADA",
         ["Only public profiles."] = "Solo perfiles públicos.",
+        ["This Instagram link has only videos. Instagram saves photos only."] =
+            "Este enlace de Instagram solo tiene vídeos. Instagram guarda solo fotos.",
         ["Instagram hid the posts. Sign in when asked. Chrome can stay open."] =
             "Instagram ocultó las publicaciones. Inicia sesión cuando se pida. Chrome puede seguir abierto.",
         ["Paste a Bunkr file or album link, not the homepage."] = "Pega un enlace de archivo o álbum de Bunkr, no la portada.",

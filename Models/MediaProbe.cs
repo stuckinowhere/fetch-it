@@ -59,16 +59,26 @@ public sealed class MediaProbe
     public bool HasVideo => VideoCount > 0;
     public int FileCount => VideoCount + ImageCount;
 
-    /// <summary>The same list with the videos left out.</summary>
-    public MediaProbe PhotosOnly() => new()
+    /// <summary>
+    /// The same list with the videos left out. A photo with no direct link goes
+    /// too: only the tool could fetch it, and the tool would bring the videos back.
+    /// </summary>
+    public MediaProbe PhotosOnly()
     {
-        Title = Title,
-        Site = Site,
-        ImageCount = ImageCount,
-        Engine = Engine,
-        Items = Items.Where(item => item.Kind == MediaKind.Image).ToList(),
-        IsPartial = IsPartial
-    };
+        var photos = Items
+            .Where(item => item.Kind == MediaKind.Image
+                           && Services.MediaRouter.TryParseHttpUrl(item.DownloadUrl, out _))
+            .ToList();
+        return new MediaProbe
+        {
+            Title = Title,
+            Site = Site,
+            ImageCount = photos.Count,
+            Engine = Engine,
+            Items = photos,
+            IsPartial = IsPartial
+        };
+    }
 
     public string Summary
     {
