@@ -191,38 +191,43 @@ public sealed class GalleryDlService
         var done = 0;
         var social = MediaRouter.TryParseHttpUrl(url, out var uri) && MediaRouter.IsSocialPostHost(uri);
         using var cookies = SessionCookies.BindForTool(social);
+        using var staging = ToolStaging.Create();
         var args = new List<string>
         {
-            "-D", dest,
+            "-D", staging.Folder,
             "--no-mtime",
-            "-o", "path-extended=false",
-            "-o", duplicate == DuplicateChoice.Overwrite ? "skip=false" : "skip=true"
+            "-o", "path-extended=false"
         };
-        if (duplicate == DuplicateChoice.KeepBoth)
-        {
-            var tag = DateTime.Now.ToString("yyyyMMdd-HHmmss");
-            args.Add("-o");
-            args.Add($"filename={{filename}}_{tag}.{{extension}}");
-        }
         AddHostOptions(args, url);
         args.AddRange(cookies.Arguments);
         args.Add(url);
 
-        var code = await ProcessRunner.RunAsync(tools.GalleryDl, args, line =>
+        int code;
+        try
         {
-            if (LooksLikeSavedFile(line))
+            code = await ProcessRunner.RunAsync(tools.GalleryDl, args, line =>
             {
-                done++;
-                var total = Math.Max(fileCount, done);
-                progress.Report(new FetchProgress
+                if (LooksLikeSavedFile(line))
                 {
-                    Percent = total == 0 ? 0 : 100.0 * done / total,
-                    HasPercent = true,
-                    Status = $"{done} / {total}"
-                });
-            }
-        }, cancellationToken).ConfigureAwait(false);
+                    done++;
+                    var total = Math.Max(fileCount, done);
+                    progress.Report(new FetchProgress
+                    {
+                        Percent = total == 0 ? 0 : 100.0 * done / total,
+                        HasPercent = true,
+                        Status = $"{done} / {total}"
+                    });
+                }
+            }, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            staging.MoveTo(dest, duplicate); // Keep what finished before Stop.
+            throw;
+        }
 
+        progress.Report(new FetchProgress { Status = "Saving…" });
+        done = Math.Max(done, staging.MoveTo(dest, duplicate));
         EnsureToolSucceeded(code, done, fileCount);
     }
 
