@@ -53,7 +53,7 @@ If PowerShell blocks scripts: `Set-ExecutionPolicy -Scope Process Bypass`.
 - **Download** (or Ctrl+Enter) — save files after Fetch finishes. Shows speed and how much is left. Becomes **Stop** while saving. When done, **Open folder** takes you to the files.
 - **Set aside without people** — after a download of several files, check them on this PC and move those with no people into a subfolder to review. Nothing is deleted and nothing is uploaded. The first run fetches a 36 MB detector ([YOLOX](https://github.com/Megvii-BaseDetection/YOLOX), Apache-2.0).
 - The window reopens where you left it, on the same screen.
-- Folder icon — where files go. Defaults to your Windows Downloads folder (including if you moved it). Remembers the last folder you pick. A whole Instagram profile goes in a subfolder named after the user. When a list has both photos and videos, the app asks whether to save both or only the photos.
+- Folder icon — where files go. Defaults to your Windows Downloads folder (including if you moved it). Remembers the last folder you pick. A whole Instagram profile goes in a subfolder named after the user. Instagram saves photos only: videos and reels are left out, and a link with only videos shows an error. On other sites, when a list has both photos and videos, the app asks whether to save both or only the photos.
 - Theme icon — light or dark.
 - Update icon — check GitHub Releases. On launch the app does this quietly and only prompts when a newer setup exists. **Install** downloads the setup (or the zip for a portable copy), checks it against the release `SHA256SUMS.txt`, runs it, and reopens the app.
 - Account icon — sign in to Instagram or sign out. Sign-in opens a real Chrome window with its own temporary profile, separate from your normal Chrome, which closes by itself once you are in. Without Chrome, a small built-in window is used. The session stays saved (encrypted for your Windows user) and is reused until it expires or Instagram rejects it. No password is stored. Instagram also asks you to sign in on the first link if you have not. Chrome can stay open.
@@ -79,11 +79,11 @@ After this branch is on `main`:
 ```powershell
 git checkout main
 git pull
-git tag v1.3.0
-git push origin v1.3.0
+git tag v1.3.1
+git push origin v1.3.1
 ```
 
-That runs `.github/workflows/release.yml`, which tests, publishes a self-contained win-x64 build, fetches tools, and creates a GitHub Release with `fetch-it-v1.3.0-win-x64-setup.exe`, `fetch-it-v1.3.0-win-x64.zip`, and `SHA256SUMS.txt` (the in-app updater refuses a release without it).
+That runs `.github/workflows/release.yml`, which tests, publishes a self-contained win-x64 build, fetches tools, and creates a GitHub Release with `fetch-it-v1.3.1-win-x64-setup.exe`, `fetch-it-v1.3.1-win-x64.zip`, and `SHA256SUMS.txt` (the in-app updater refuses a release without it).
 
 To build the installer locally (needs [Inno Setup 6](https://jrsoftware.org/isinfo.php)):
 

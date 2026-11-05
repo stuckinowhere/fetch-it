@@ -14,6 +14,27 @@ public sealed class MediaFetcher
         string url,
         IProgress<FetchProgress>? progress,
         CancellationToken cancellationToken)
+        => InstagramPhotos(await ReadLinkAsync(url, progress, cancellationToken).ConfigureAwait(false), url);
+
+    /// <summary>
+    /// Instagram saves photos only. The list is cut here so the preview, the
+    /// counts and the download agree, and no question about videos comes up.
+    /// </summary>
+    internal static MediaProbe InstagramPhotos(MediaProbe probe, string url)
+    {
+        if (!MediaRouter.TryParseHttpUrl(url, out var uri) || !MediaRouter.IsInstagram(uri))
+            return probe;
+
+        var photos = probe.PhotosOnly();
+        return photos.Items.Count > 0
+            ? photos
+            : throw new InvalidOperationException(MediaRouter.InstagramVideosMessage);
+    }
+
+    private async Task<MediaProbe> ReadLinkAsync(
+        string url,
+        IProgress<FetchProgress>? progress,
+        CancellationToken cancellationToken)
     {
         if (!MediaRouter.TryParseHttpUrl(url, out var uri))
             throw new InvalidOperationException("Not a link.");

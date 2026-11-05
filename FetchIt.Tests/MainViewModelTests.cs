@@ -130,11 +130,11 @@ public class MainViewModelTests
         }
     }
 
-    private const string ProfileLink = "https://www.instagram.com/someone/";
+    private const string ProfileLink = "https://x.com/someone/media";
 
     private static MediaProbe Mixed(int images = 1, int videos = 1) => new()
     {
-        Site = "Instagram",
+        Site = "X",
         Engine = EngineKind.GalleryDl,
         ImageCount = images,
         VideoCount = videos,
@@ -150,7 +150,7 @@ public class MainViewModelTests
             .. Enumerable.Range(0, videos).Select(i => new MediaItem
             {
                 Kind = MediaKind.Video,
-                ToolUrl = $"https://www.instagram.com/p/{i}/",
+                ToolUrl = $"https://x.com/someone/status/{i}",
                 SaveName = $"{i}.mp4"
             })
         ]
@@ -212,6 +212,69 @@ public class MainViewModelTests
         await vm.ChooseMediaAsync(Mixed(), url);
 
         Assert.Equal(0, ui.VideoAsks);
+    }
+
+    [Theory]
+    [InlineData("https://www.instagram.com/someone/")]
+    [InlineData("https://www.instagram.com/p/abc/")]
+    [InlineData("https://www.instagram.com/stories/someone/")]
+    [InlineData("https://instagr.am/p/abc/")]
+    public async Task Instagram_keeps_photos_and_asks_nothing(string url)
+    {
+        var ui = new FakeUi();
+        var vm = new MainViewModel { Ui = ui };
+
+        var chosen = await vm.ChooseMediaAsync(MediaFetcher.InstagramPhotos(Mixed(2, 3), url), url);
+
+        Assert.Equal(0, ui.VideoAsks);
+        Assert.All(chosen!.Items, item => Assert.Equal(MediaKind.Image, item.Kind));
+        Assert.Equal(2, chosen.ImageCount);
+        Assert.Equal(0, chosen.VideoCount);
+        Assert.True(GalleryDlService.CanDownloadDirect(chosen));
+        Assert.Empty(GalleryDlService.ToolPosts(@"C:
+one", chosen, DuplicateChoice.Overwrite));
+    }
+
+    [Fact]
+    public void Instagram_link_with_only_videos_says_so()
+    {
+        var error = Assert.Throws<InvalidOperationException>(
+            () => MediaFetcher.InstagramPhotos(Mixed(0, 2), "https://www.instagram.com/reel/abc/"));
+
+        Assert.Equal(MediaRouter.InstagramVideosMessage, error.Message);
+        Assert.Equal(error.Message, MainViewModel.Short(error.Message));
+    }
+
+    [Fact]
+    public void Instagram_drops_a_photo_only_the_tool_can_fetch()
+    {
+        var probe = new MediaProbe
+        {
+            Engine = EngineKind.GalleryDl,
+            ImageCount = 2,
+            Items =
+            [
+                new MediaItem { Kind = MediaKind.Image, DownloadUrl = "https://cdn.example/a.jpg" },
+                new MediaItem { Kind = MediaKind.Image, ToolUrl = "https://www.instagram.com/p/abc/" }
+            ]
+        };
+
+        var photos = MediaFetcher.InstagramPhotos(probe, "https://www.instagram.com/someone/");
+
+        Assert.Equal(1, photos.ImageCount);
+        Assert.Equal(1, photos.FileCount);
+        Assert.Empty(GalleryDlService.ToolPosts(@"C:
+one", photos, DuplicateChoice.Overwrite));
+    }
+
+    [Theory]
+    [InlineData("https://x.com/someone/media")]
+    [InlineData("https://www.threads.net/@someone")]
+    public void Other_sites_keep_their_videos(string url)
+    {
+        var probe = Mixed(2, 3);
+
+        Assert.Same(probe, MediaFetcher.InstagramPhotos(probe, url));
     }
 
     [Fact]
