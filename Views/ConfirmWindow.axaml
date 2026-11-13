@@ -15,7 +15,7 @@
         <TextBlock x:Name="Eyebrow"
                    FontSize="12"
                    FontWeight="Bold"
-                   Foreground="{DynamicResource SuccessBrush}" />
+                   Foreground="{DynamicResource MutedBrush}" />
         <TextBlock x:Name="Body"
                    FontSize="16"
                    FontWeight="Medium"
@@ -33,13 +33,7 @@
                     MinWidth="120"
                     IsDefault="True"
                     Click="OnYesClick">
-                <TextBlock x:Name="YesLabel"
-                           FontFamily="{StaticResource Plex}"
-                           FontSize="16"
-                           FontWeight="Bold"
-                           Foreground="{DynamicResource FetchTextBrush}"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center" />
+                <TextBlock x:Name="YesLabel" />
             </Button>
         </Grid>
     </StackPanel>

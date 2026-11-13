@@ -16,6 +16,8 @@
                     <SolidColorBrush x:Key="FetchBrush" Color="#FFFFFFFF" />
                     <SolidColorBrush x:Key="FetchTextBrush" Color="#FF000000" />
                     <SolidColorBrush x:Key="MutedBrush" Color="#FFBDBDBD" />
+                    <SolidColorBrush x:Key="TileBrush" Color="#FF1A1A1A" />
+                    <SolidColorBrush x:Key="CardBrush" Color="#FF2E2E2E" />
                     <SolidColorBrush x:Key="DangerBrush" Color="#FFFF5252" />
                     <SolidColorBrush x:Key="SuccessBrush" Color="#FF69F0AE" />
                     <SolidColorBrush x:Key="MaterialTextBoxBorderColor" Color="#FFFFFFFF" />
@@ -26,6 +28,8 @@
                     <SolidColorBrush x:Key="FetchBrush" Color="#FF000000" />
                     <SolidColorBrush x:Key="FetchTextBrush" Color="#FFFFFFFF" />
                     <SolidColorBrush x:Key="MutedBrush" Color="#FF424242" />
+                    <SolidColorBrush x:Key="TileBrush" Color="#FFE6E6E6" />
+                    <SolidColorBrush x:Key="CardBrush" Color="#FFF5F5F5" />
                     <SolidColorBrush x:Key="DangerBrush" Color="#FFC62828" />
                     <SolidColorBrush x:Key="SuccessBrush" Color="#FF2E7D32" />
                     <SolidColorBrush x:Key="MaterialTextBoxBorderColor" Color="#FF000000" />
@@ -86,6 +90,13 @@
         </Style>
         <Style Selector="Button.fetch:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Opacity" Value="0.88" />
+        </Style>
+        <Style Selector="Button.fetch TextBlock">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{DynamicResource FetchTextBrush}" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
         <Style Selector="Button.Flat">
             <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />

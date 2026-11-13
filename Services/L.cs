@@ -54,6 +54,7 @@ public static class L
     public static string AppTitle => "fetch it";
     public static string EmptyHint => T("Paste a link, then Fetch.");
     public static string SaveFolderTip => T("Save folder");
+    public static string LinkLabel => T("Link");
     public static string UpdatesTip => T("Updates");
     public static string ThemeTip => T("Theme");
     public static string Fetch => "Fetch";
@@ -165,6 +166,9 @@ public static class L
         ["Merging…"] = "Uniendo…",
         ["Finishing…"] = "Terminando…",
         ["Saved to {0}."] = "Guardado en {0}.",
+        ["Already saved in {0}."] = "Ya guardado en {0}.",
+        ["The connection went quiet. Try again."] = "La conexión dejó de responder. Inténtalo de nuevo.",
+        ["Link"] = "Enlace",
         ["Reading the whole profile… {0} files · {1}"] = "Leyendo perfil completo… {0} archivos · {1}",
         ["Instagram asked to wait until {0}. It continues by itself. {1} files · {2}"] = "Instagram pidió esperar hasta las {0}. Sigue solo. {1} archivos · {2}",
         ["Partial list"] = "Lista parcial",

@@ -157,6 +157,49 @@ public class MainViewModelTests
     };
 
     [Fact]
+    public void A_file_named_by_the_site_is_not_fetched_again()
+    {
+        var byId = Mixed(2, 0);
+        var byTitle = new MediaProbe
+        {
+            Engine = EngineKind.GalleryDl,
+            ImageCount = 1,
+            Items = [new MediaItem { Kind = MediaKind.Image, DownloadUrl = "https://cdn.example/a.jpg" }]
+        };
+
+        Assert.Equal(DuplicateChoice.Skip, MainViewModel.ChoiceFor(byId));
+        Assert.Equal(DuplicateChoice.KeepBoth, MainViewModel.ChoiceFor(byTitle));
+
+        var folder = SavedFolder("0.jpg");
+        try
+        {
+            var jobs = GalleryDlService.PlanDirectFiles(folder, byId, MainViewModel.ChoiceFor(byId));
+            Assert.Equal(["1.jpg"], jobs.Select(job => Path.GetFileName(job.Path)));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData(3, 3, DuplicateChoice.Skip, true)]
+    [InlineData(3, 2, DuplicateChoice.Skip, false)]
+    [InlineData(3, 3, DuplicateChoice.KeepBoth, false)]
+    [InlineData(0, 0, DuplicateChoice.Skip, false)]
+    public void Nothing_is_downloaded_when_every_file_is_saved(int files, int existing, DuplicateChoice choice, bool expected)
+        => Assert.Equal(expected, MainViewModel.IsAllSaved(Mixed(files, 0), existing, choice));
+
+    private static string SavedFolder(params string[] names)
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "WasdFetchIt-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        foreach (var name in names)
+            File.WriteAllText(Path.Combine(folder, name), "x");
+        return folder;
+    }
+
+    [Fact]
     public async Task Photos_only_leaves_out_every_video()
     {
         var vm = new MainViewModel { Ui = new FakeUi { VideosAnswer = false } };

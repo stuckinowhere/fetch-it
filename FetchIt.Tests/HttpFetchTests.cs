@@ -67,6 +67,109 @@ public class HttpFetchTests
         }
     }
 
+    private static string TempFile()
+    {
+        var dest = Path.Combine(Path.GetTempPath(), "WasdFetchIt-tests", Guid.NewGuid().ToString("N") + ".bin");
+        Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+        return dest;
+    }
+
+    [Fact]
+    public async Task A_silent_connection_is_cut_and_tried_again()
+    {
+        var dest = TempFile();
+        var handler = new DripHandler(chunks: 1, pause: Timeout.InfiniteTimeSpan);
+        using var http = new HttpClient(handler);
+
+        var error = await Assert.ThrowsAsync<IOException>(() => HttpFetch.SaveStreamAsync(
+            http, "https://example.com/a.bin", dest, CancellationToken.None,
+            retries: 2, retryDelayMs: 1, idleLimit: TimeSpan.FromMilliseconds(150)));
+
+        Assert.Equal(HttpFetch.QuietMessage, error.Message);
+        Assert.Equal(2, handler.Calls);
+        Assert.False(File.Exists(dest));
+        Assert.False(File.Exists(dest + ".part"));
+    }
+
+    [Fact]
+    public async Task A_slow_download_that_keeps_arriving_is_not_cut()
+    {
+        var dest = TempFile();
+        var handler = new DripHandler(chunks: 6, pause: TimeSpan.FromMilliseconds(60));
+        using var http = new HttpClient(handler);
+        try
+        {
+            // Longer in all than the limit, but never silent for that long.
+            await HttpFetch.SaveStreamAsync(
+                http, "https://example.com/a.bin", dest, CancellationToken.None,
+                retries: 1, idleLimit: TimeSpan.FromMilliseconds(250));
+
+            Assert.Equal(6, new FileInfo(dest).Length);
+            Assert.Equal(1, handler.Calls);
+        }
+        finally
+        {
+            HttpFetch.TryDelete(dest);
+        }
+    }
+
+    [Fact]
+    public async Task Stop_is_not_mistaken_for_a_silent_connection()
+    {
+        var dest = TempFile();
+        using var http = new HttpClient(new DripHandler(chunks: 1, pause: Timeout.InfiniteTimeSpan));
+        using var stop = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => HttpFetch.SaveStreamAsync(
+            http, "https://example.com/a.bin", dest, stop.Token, idleLimit: TimeSpan.FromSeconds(30)));
+    }
+
+    /// <summary>Sends one byte, waits, and repeats. With an endless pause it never ends.</summary>
+    private sealed class DripHandler(int chunks, TimeSpan pause) : HttpMessageHandler
+    {
+        public int Calls { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StreamContent(new DripStream(chunks, pause))
+            });
+        }
+    }
+
+    private sealed class DripStream(int chunks, TimeSpan pause) : Stream
+    {
+        private int _sent;
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            var endless = pause == Timeout.InfiniteTimeSpan;
+            if (_sent >= chunks && !endless)
+                return 0;
+            if (_sent > 0)
+                await Task.Delay(pause, cancellationToken);
+            _sent++;
+            buffer.Span[0] = 7;
+            return 1;
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+            => ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
     private sealed class StubHandler : HttpMessageHandler
     {
         private readonly byte[] _body;

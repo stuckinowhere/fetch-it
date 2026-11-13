@@ -115,8 +115,10 @@ public static class SessionCookies
             MigrateLegacy();
             return Evaluate(ReadPlaintext(), DateTimeOffset.UtcNow);
         }
-        catch
+        catch (Exception ex)
         {
+            // Shows as signed out, so the reason has to be somewhere.
+            AppLog.Warn($"could not read the saved session: {ex.GetType().Name}");
             return new SessionStatus(SessionState.None, null);
         }
     }

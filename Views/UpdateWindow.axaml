@@ -40,13 +40,7 @@
                     MinWidth="120"
                     Click="OnPrimaryClick">
                 <TextBlock x:Name="PrimaryLabel"
-                           Text="{x:Static s:L.Install}"
-                           FontFamily="{StaticResource Plex}"
-                           FontSize="16"
-                           FontWeight="Bold"
-                           Foreground="{DynamicResource FetchTextBrush}"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center" />
+                           Text="{x:Static s:L.Install}" />
             </Button>
         </Grid>
     </StackPanel>

@@ -64,9 +64,9 @@ public class GalleryDlServiceTests
         => Assert.Equal(expected, GalleryDlService.BatchStatus(done, total, bytes, TimeSpan.FromSeconds(seconds)));
 
     [Fact]
-    public void Whole_profile_asks_for_every_media_tab_and_not_metadata()
+    public void Whole_profile_asks_for_every_photo_tab_and_not_metadata_or_reels()
     {
-        var tabs = GalleryDlService.InstagramEverything.Split(',');
-        Assert.Equal(["avatar", "highlights", "posts", "reels", "stories", "tagged"], tabs.Order());
+        var tabs = GalleryDlService.InstagramTabs.Split(',');
+        Assert.Equal(["avatar", "highlights", "posts", "stories", "tagged"], tabs.Order());
     }
 }

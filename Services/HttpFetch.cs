@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Net;
 using System.Net.Http.Headers;
 using FetchIt.Models;
@@ -6,6 +7,12 @@ namespace FetchIt.Services;
 
 internal static class HttpFetch
 {
+    /// <summary>
+    /// How long a download may receive nothing before it is cut and tried again.
+    /// Without it a dead connection holds its slot until the user presses Stop.
+    /// </summary>
+    internal static readonly TimeSpan IdleLimit = TimeSpan.FromSeconds(45);
+
     internal const string UserAgent =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
 
@@ -48,7 +55,8 @@ internal static class HttpFetch
         int retryDelayMs = 400,
         bool resume = false,
         bool http11 = false,
-        Action<HttpRequestMessage>? configure = null)
+        Action<HttpRequestMessage>? configure = null,
+        TimeSpan? idleLimit = null)
     {
         var folder = Path.GetDirectoryName(Path.GetFullPath(dest));
         if (!string.IsNullOrEmpty(folder))
@@ -63,7 +71,7 @@ internal static class HttpFetch
             try
             {
                 await SaveOnceAsync(
-                    http, url, dest, part, progress, resume, http11, configure, cancellationToken)
+                    http, url, dest, part, progress, resume, http11, configure, idleLimit ?? IdleLimit, cancellationToken)
                     .ConfigureAwait(false);
                 return;
             }
@@ -100,6 +108,36 @@ internal static class HttpFetch
         bool resume,
         bool http11,
         Action<HttpRequestMessage>? configure,
+        TimeSpan idleLimit,
+        CancellationToken cancellationToken)
+    {
+        // Cancelled by silence, not by the user: the caller sees a failed try and repeats it.
+        using var idle = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        idle.CancelAfter(idleLimit);
+        try
+        {
+            await CopyOnceAsync(http, url, dest, part, progress, resume, http11, configure, idleLimit, idle, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            if (!resume)
+                TryDelete(part);
+            throw new IOException(QuietMessage);
+        }
+    }
+
+    private static async Task CopyOnceAsync(
+        HttpClient http,
+        string url,
+        string dest,
+        string part,
+        IProgress<FetchProgress>? progress,
+        bool resume,
+        bool http11,
+        Action<HttpRequestMessage>? configure,
+        TimeSpan idleLimit,
+        CancellationTokenSource idle,
         CancellationToken cancellationToken)
     {
         var have = resume && ShouldResume(part, out var existing) ? existing : 0L;
@@ -118,7 +156,7 @@ internal static class HttpFetch
         configure?.Invoke(request);
 
         using var response = await http
-            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, idle.Token)
             .ConfigureAwait(false);
         if (resume && response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable)
         {
@@ -138,35 +176,38 @@ internal static class HttpFetch
 
         try
         {
-            await using (var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
-            await using (var output = append
-                ? new FileStream(part, FileMode.Append, FileAccess.Write, FileShare.None)
-                : File.Create(part))
+            var buffer = ArrayPool<byte>.Shared.Rent(CopyBuffer);
+            try
             {
-                if (progress is null)
+                await using var input = await response.Content.ReadAsStreamAsync(idle.Token).ConfigureAwait(false);
+                await using var output = append
+                    ? new FileStream(part, FileMode.Append, FileAccess.Write, FileShare.None)
+                    : File.Create(part);
+                var meter = new DownloadMeter();
+                meter.Reset(have);
+                long written = have;
+                var lastReport = 0L;
+                while (true)
                 {
-                    await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
-                }
-                else
-                {
-                    var meter = new DownloadMeter();
-                    meter.Reset(have);
-                    var buffer = new byte[256 * 1024];
-                    long written = have;
-                    var lastReport = 0L;
-                    int read;
-                    while ((read = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
-                    {
-                        await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken)
-                            .ConfigureAwait(false);
-                        written += read;
-                        if (written - lastReport < 256 * 1024)
-                            continue;
-                        lastReport = written;
-                        progress.Report(meter.Snapshot(written, total));
-                    }
+                    idle.CancelAfter(idleLimit);
+                    var read = await input.ReadAsync(buffer.AsMemory(0, CopyBuffer), idle.Token).ConfigureAwait(false);
+                    if (read == 0)
+                        break;
+                    await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+                    written += read;
+                    if (progress is null || written - lastReport < CopyBuffer)
+                        continue;
+                    lastReport = written;
+                    progress.Report(meter.Snapshot(written, total));
                 }
             }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
+
+            // The bytes are here: nothing below waits on the network.
+            idle.CancelAfter(Timeout.InfiniteTimeSpan);
 
             var fileWritten = new FileInfo(part).Length;
             if (fileWritten == 0)
@@ -193,6 +234,10 @@ internal static class HttpFetch
             throw;
         }
     }
+
+    private const int CopyBuffer = 256 * 1024;
+
+    internal const string QuietMessage = "The connection went quiet. Try again.";
 
     internal static void TryDelete(string path)
     {

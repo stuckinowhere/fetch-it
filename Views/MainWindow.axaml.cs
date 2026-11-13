@@ -22,7 +22,6 @@ public partial class MainWindow : Window, IUiHost
         ShowActivated = Environment.GetEnvironmentVariable("FETCHIT_OPEN_QUIETLY") is null;
         Activated += OnActivated;
         Opened += OnOpened;
-        SizeChanged += OnWindowSizeChanged;
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DropEvent, OnDrop);
         // Tunnel so the shortcut works while the URL box has focus.
@@ -174,18 +173,6 @@ public partial class MainWindow : Window, IUiHost
 
     private void OnPreviewSizeChanged(object? sender, SizeChangedEventArgs e)
         => FitPreview(e.NewSize.Width, e.NewSize.Height);
-
-    private void OnWindowSizeChanged(object? sender, SizeChangedEventArgs e)
-        => FitPreviewFromWindow();
-
-    private void FitPreviewFromWindow()
-    {
-        if (DataContext is not MainViewModel vm)
-            return;
-        var width = Math.Max(0, Bounds.Width - 48);
-        var height = Math.Max(0, Bounds.Height - 220);
-        vm.FitPreview(width, height);
-    }
 
     private void FitPreview(double width, double height)
     {

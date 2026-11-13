@@ -15,7 +15,7 @@
         <TextBlock Text="{x:Static s:L.Accounts}"
                    FontSize="12"
                    FontWeight="Bold"
-                   Foreground="{DynamicResource SuccessBrush}" />
+                   Foreground="{DynamicResource MutedBrush}" />
         <StackPanel Spacing="4">
             <TextBlock Text="Instagram"
                        FontSize="16"
@@ -44,13 +44,7 @@
                     MinWidth="160"
                     IsDefault="True"
                     Click="OnPrimaryClick">
-                <TextBlock x:Name="PrimaryLabel"
-                           FontFamily="{StaticResource Plex}"
-                           FontSize="16"
-                           FontWeight="Bold"
-                           Foreground="{DynamicResource FetchTextBrush}"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center" />
+                <TextBlock x:Name="PrimaryLabel" />
             </Button>
         </Grid>
     </StackPanel>
