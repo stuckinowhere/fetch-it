@@ -23,6 +23,34 @@ public class ProcessRunnerTests
     }
 
     [Fact]
+    public async Task RunSplitAsync_keeps_stderr_notices_out_of_the_output()
+    {
+        // Regression: gallery-dl wrote "[twitter][info] Requesting guest token"
+        // on stderr before the JSON, and the mixed text could not be parsed.
+        var (output, errors) = await ProcessRunner.RunSplitAsync(
+            "cmd.exe",
+            ["/c", "echo [twitter][info] Requesting guest token 1>&2 & echo [[3]]"],
+            CancellationToken.None,
+            timeout: TimeSpan.FromSeconds(30));
+
+        Assert.Equal("[[3]]", output.Trim());
+        Assert.Contains("Requesting guest token", errors);
+    }
+
+    [Fact]
+    public async Task RunTextAsync_still_returns_stderr_with_stdout()
+    {
+        var text = await ProcessRunner.RunTextAsync(
+            "cmd.exe",
+            ["/c", "echo notice 1>&2 & echo data"],
+            CancellationToken.None,
+            timeout: TimeSpan.FromSeconds(30));
+
+        Assert.Contains("notice", text);
+        Assert.Contains("data", text);
+    }
+
+    [Fact]
     public async Task RunAsync_returns_exit_code()
     {
         var code = await ProcessRunner.RunAsync("cmd.exe", ["/c", "exit 7"], null, CancellationToken.None);

@@ -37,10 +37,13 @@ public sealed class GalleryDlService
         // gallery-dl prints everything at the end, so show that it is alive.
         using var reading = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var ticker = ShowElapsedAsync("Reading link…", progress, reading.Token);
-        string text;
+        string json;
+        string notices;
         try
         {
-            text = await ProcessRunner.RunTextAsync(
+            // Notices such as "[twitter][info] Requesting guest token" come on
+            // stderr and start with a bracket, so they stay out of the JSON.
+            (json, notices) = await ProcessRunner.RunSplitAsync(
                 tools.GalleryDl, args, cancellationToken, timeout: ReadLimit)
                 .ConfigureAwait(false);
         }
@@ -50,12 +53,13 @@ public sealed class GalleryDlService
             await ticker.ConfigureAwait(false);
         }
 
-        if (string.IsNullOrWhiteSpace(text) || LooksLikeFailure(text))
+        var text = json + notices;
+        if (string.IsNullOrWhiteSpace(json) || LooksLikeFailure(json))
         {
             AppLog.Warn($"gallery-dl probe failed for {AppLog.SafeUrl(url)}:\n{text}");
             throw new InvalidOperationException(ShortError(url, text));
         }
-        var probe = GalleryDlParser.Parse(text);
+        var probe = GalleryDlParser.Parse(json);
         if (probe.FileCount > 0 && probe.Items.Count > 0)
             return probe;
         throw new InvalidOperationException(ShortError(url, text));

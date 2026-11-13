@@ -10,8 +10,11 @@ internal static class ProcessRunner
         IEnumerable<string> arguments,
         Action<string>? onLine,
         CancellationToken cancellationToken,
-        IReadOnlyDictionary<string, string>? environment = null)
+        IReadOnlyDictionary<string, string>? environment = null,
+        Action<string>? onError = null)
     {
+        // Without onError, stderr lines go to onLine with the stdout lines.
+        var errorLine = onError ?? onLine;
         var start = new ProcessStartInfo
         {
             FileName = fileName,
@@ -47,7 +50,7 @@ internal static class ProcessRunner
                 return;
             if (stderr.Length < 16 * 1024)
                 stderr.AppendLine(e.Data);
-            onLine?.Invoke(e.Data);
+            errorLine?.Invoke(e.Data);
         };
 
         if (!process.Start())
@@ -77,6 +80,7 @@ internal static class ProcessRunner
         return code;
     }
 
+    /// <summary>stdout and stderr in one text, in arrival order.</summary>
     public static async Task<string> RunTextAsync(
         string fileName,
         IEnumerable<string> arguments,
@@ -84,24 +88,62 @@ internal static class ProcessRunner
         IReadOnlyDictionary<string, string>? environment = null,
         TimeSpan? timeout = null)
     {
-        using var linked = timeout is { } limit
+        var (output, _) = await RunCapturedAsync(fileName, arguments, cancellationToken, environment, timeout, split: false)
+            .ConfigureAwait(false);
+        return output;
+    }
+
+    /// <summary>
+    /// stdout and stderr apart. A tool that prints data on stdout can print a
+    /// notice on stderr at any moment, and a notice inside the data breaks it.
+    /// </summary>
+    public static Task<(string Output, string Errors)> RunSplitAsync(
+        string fileName,
+        IEnumerable<string> arguments,
+        CancellationToken cancellationToken,
+        IReadOnlyDictionary<string, string>? environment = null,
+        TimeSpan? timeout = null)
+        => RunCapturedAsync(fileName, arguments, cancellationToken, environment, timeout, split: true);
+
+    private static async Task<(string Output, string Errors)> RunCapturedAsync(
+        string fileName,
+        IEnumerable<string> arguments,
+        CancellationToken cancellationToken,
+        IReadOnlyDictionary<string, string>? environment,
+        TimeSpan? timeout,
+        bool split)
+    {
+        using var linked = timeout is not null
             ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
             : null;
         linked?.CancelAfter(timeout!.Value);
         var ct = linked?.Token ?? cancellationToken;
 
+        // The two streams arrive on different threads.
+        var gate = new object();
         var builder = new StringBuilder();
+        var errors = new StringBuilder();
+        void Add(StringBuilder target, string line)
+        {
+            lock (gate)
+                target.AppendLine(line);
+        }
+
         try
         {
-            var code = await RunAsync(fileName, arguments, line =>
-            {
-                builder.AppendLine(line);
-            }, ct, environment: environment).ConfigureAwait(false);
+            var code = await RunAsync(
+                fileName,
+                arguments,
+                line => Add(builder, line),
+                ct,
+                environment: environment,
+                onError: line => Add(split ? errors : builder, line)).ConfigureAwait(false);
 
             var text = builder.ToString();
-            if (code != 0 && string.IsNullOrWhiteSpace(text))
+            var errorText = errors.ToString();
+            if (code != 0 && string.IsNullOrWhiteSpace(text) && string.IsNullOrWhiteSpace(errorText))
                 throw new InvalidOperationException($"{Path.GetFileName(fileName)} exited {code}.");
-            return text;
+            return (text, errorText);
         }
         catch (OperationCanceledException) when (timeout is not null && !cancellationToken.IsCancellationRequested)
         {
