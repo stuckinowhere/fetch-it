@@ -81,7 +81,7 @@ public sealed class GalleryDlService
             "-D", staging.Folder,
             "-o", "path-extended=false",
             "-o", "extractor.instagram.sleep-request=1.0-2.0",
-            "-o", "extractor.instagram.include=" + InstagramEverything,
+            "-o", "extractor.instagram.include=" + InstagramTabs,
             "-o", ListingOption(staging.Folder)
         };
         AddHostOptions(args, url);
@@ -94,7 +94,7 @@ public sealed class GalleryDlService
         var finished = false;
         try
         {
-            var code = await ProcessRunner.RunAsync(tools.GalleryDl, args, listing.Read, running.Token).ConfigureAwait(false);
+            var code = await ProcessRunner.RunAsync(tools.GalleryDl!, args, listing.Read, running.Token).ConfigureAwait(false);
             finished = code == 0;
         }
         catch (OperationCanceledException)
@@ -233,10 +233,11 @@ public sealed class GalleryDlService
         await DownloadWithToolAsync([url], dest, probe.FileCount, duplicate, wholeProfile, progress, cancellationToken).ConfigureAwait(false);
     }
 
-    // Everything a signed-in account can see on a profile, as files. No "info":
-    // that is metadata, not media. The short tabs come first, so a stopped run
-    // still has the stories, which disappear within a day.
-    internal const string InstagramEverything = "avatar,stories,highlights,posts,reels,tagged";
+    // Every tab of a profile that can hold a photo. No "info": that is metadata,
+    // not media. No "reels": they are videos, and Instagram saves photos only.
+    // The short tabs come first, so a stopped run still has the stories, which
+    // disappear within a day.
+    internal const string InstagramTabs = "avatar,stories,highlights,posts,tagged";
 
     internal const string InstagramFileName = "{filename}.{extension}";
 
@@ -244,6 +245,8 @@ public sealed class GalleryDlService
     internal const string VideosOnlyFilter = "extension not in ('jpg', 'jpeg', 'png', 'webp', 'heic', 'gif')";
 
     internal const int DirectParallel = 4;
+
+    private const int MaxLoggedFailures = 20;
 
     internal static readonly TimeSpan ReadLimit = TimeSpan.FromMinutes(30);
 
@@ -307,6 +310,7 @@ public sealed class GalleryDlService
         var shownTotal = Math.Max(grandTotal, total);
         var done = 0;
         var bytes = 0L;
+        var logged = 0;
         var clock = System.Diagnostics.Stopwatch.StartNew();
 
         async Task AttemptAsync(IReadOnlyList<(string Url, string Path)> batch, int parallel)
@@ -347,8 +351,11 @@ public sealed class GalleryDlService
                     {
                         throw;
                     }
-                    catch
+                    catch (Exception ex)
                     {
+                        // The first few say why; a whole profile failing must not fill the log.
+                        if (Interlocked.Increment(ref logged) <= MaxLoggedFailures)
+                            AppLog.Warn($"could not save {Path.GetFileName(job.Path)}: {ex.GetType().Name}: {ex.Message}");
                         failed.Add(job);
                     }
                 }).ConfigureAwait(false);
@@ -397,7 +404,7 @@ public sealed class GalleryDlService
             "-o", "path-extended=false"
         };
         if (wholeProfile)
-            args.AddRange(["-o", "extractor.instagram.include=" + InstagramEverything]);
+            args.AddRange(["-o", "extractor.instagram.include=" + InstagramTabs]);
         AddHostOptions(args, url);
         args.AddRange(cookies.Arguments);
 
@@ -425,10 +432,11 @@ public sealed class GalleryDlService
             {
                 if (LooksLikeSavedFile(line))
                 {
-                    done++;
+                    // Output and error lines arrive on different threads.
+                    var count = Interlocked.Increment(ref done);
                     // gallery-dl can report a video more than once; never pass the known total.
-                    var total = videosOnly ? fileCount : Math.Max(fileCount, offset + done);
-                    var shown = Math.Min(offset + done, total);
+                    var total = videosOnly ? fileCount : Math.Max(fileCount, offset + count);
+                    var shown = Math.Min(offset + count, total);
                     progress.Report(new FetchProgress
                     {
                         Percent = total == 0 ? 0 : 100.0 * shown / total,

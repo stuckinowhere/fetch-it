@@ -54,21 +54,30 @@
                         </Panel>
                     </Button>
                     <Button Classes="Flat"
-                            Width="48"
+                            MinWidth="48"
                             Height="48"
-                            Padding="0"
+                            Padding="11,0"
                             Command="{Binding PickFolderCommand}"
-                            ToolTip.Tip="{x:Static s:L.SaveFolderTip}">
-                        <icons:MaterialIcon Kind="Folder"
-                                            Width="26"
-                                            Height="26" />
+                            ToolTip.Tip="{Binding FolderPath}"
+                            AutomationProperties.Name="{x:Static s:L.SaveFolderTip}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <icons:MaterialIcon Kind="Folder"
+                                                Width="26"
+                                                Height="26" />
+                            <TextBlock Text="{Binding FolderLabel}"
+                                       VerticalAlignment="Center"
+                                       MaxWidth="220"
+                                       TextTrimming="CharacterEllipsis"
+                                       FontSize="14" />
+                        </StackPanel>
                     </Button>
                     <Button Classes="Flat"
                             Width="48"
                             Height="48"
                             Padding="0"
                             Command="{Binding CheckForUpdatesCommand}"
-                            ToolTip.Tip="{x:Static s:L.UpdatesTip}">
+                            ToolTip.Tip="{x:Static s:L.UpdatesTip}"
+                            AutomationProperties.Name="{x:Static s:L.UpdatesTip}">
                         <icons:MaterialIcon Kind="Update"
                                             Width="26"
                                             Height="26" />
@@ -78,7 +87,8 @@
                             Height="48"
                             Padding="0"
                             Command="{Binding ToggleThemeCommand}"
-                            ToolTip.Tip="{x:Static s:L.ThemeTip}">
+                            ToolTip.Tip="{x:Static s:L.ThemeTip}"
+                            AutomationProperties.Name="{x:Static s:L.ThemeTip}">
                         <Panel>
                             <icons:MaterialIcon Kind="WeatherNight"
                                                 Width="26"
@@ -106,6 +116,7 @@
                     <TextBox BorderThickness="0"
                              Background="Transparent"
                              PlaceholderText="https://"
+                             AutomationProperties.Name="{x:Static s:L.LinkLabel}"
                              Text="{Binding Url}"
                              VerticalAlignment="Center"
                              VerticalContentAlignment="Center">
@@ -121,13 +132,7 @@
                         VerticalAlignment="Stretch"
                         IsEnabled="{Binding IsBusy, Converter={x:Static BoolConverters.Not}}"
                         Command="{Binding FetchCommand}">
-                    <TextBlock Text="{Binding FetchLabel}"
-                               FontFamily="{StaticResource Plex}"
-                               FontSize="16"
-                               FontWeight="Bold"
-                               Foreground="{DynamicResource FetchTextBrush}"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding FetchLabel}" />
                 </Button>
             </Grid>
 
@@ -136,13 +141,12 @@
                   SizeChanged="OnPreviewSizeChanged">
                 <TextBlock Text="{x:Static s:L.EmptyHint}"
                            IsVisible="{Binding ShowEmptyHint}"
-                           FontFamily="{StaticResource Plex}"
                            FontSize="16"
                            FontWeight="Medium"
                            Foreground="{DynamicResource InkBrush}" />
 
                 <Panel IsVisible="{Binding IsSinglePreview}">
-                    <Border Background="#1A1A1A" ClipToBounds="True">
+                    <Border Background="{DynamicResource TileBrush}" ClipToBounds="True">
                         <Image Source="{Binding Hero.Image}"
                                Stretch="Uniform"
                                HorizontalAlignment="Stretch"
@@ -183,12 +187,13 @@
                                     <controls:Card Width="{Binding TileWidth}"
                                                    Margin="0,0,16,16"
                                                    Padding="0"
+                                                   Background="{DynamicResource CardBrush}"
                                                    AttachedToVisualTree="OnTileShown"
                                                    DetachedFromVisualTree="OnTileHidden">
                                         <StackPanel>
                                             <Panel Height="{Binding TileImageHeight}"
                                                    ClipToBounds="True">
-                                                <Border Background="#1A1A1A" />
+                                                <Border Background="{DynamicResource TileBrush}" />
                                                 <Image Source="{Binding Image}"
                                                        Stretch="UniformToFill"
                                                        IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNotNull}}" />
@@ -228,7 +233,6 @@
                   IsVisible="{Binding HasPreview}">
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="{Binding Title}"
-                               FontFamily="{StaticResource Plex}"
                                FontSize="18"
                                FontWeight="Medium"
                                TextWrapping="Wrap"
@@ -236,7 +240,6 @@
                                MaxHeight="48" />
                     <TextBlock Text="{Binding Summary}"
                                Margin="0,4,0,0"
-                               FontFamily="{StaticResource Plex}"
                                FontSize="13"
                                FontWeight="Medium"
                                Foreground="{DynamicResource MutedBrush}"
@@ -249,13 +252,7 @@
                         IsEnabled="{Binding CanDownload}"
                         Command="{Binding DownloadCommand}"
                         ToolTip.Tip="Ctrl+Enter">
-                    <TextBlock Text="{Binding DownloadLabel}"
-                               FontFamily="{StaticResource Plex}"
-                               FontSize="16"
-                               FontWeight="Bold"
-                               Foreground="{DynamicResource FetchTextBrush}"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding DownloadLabel}" />
                 </Button>
             </Grid>
         </Grid>
@@ -271,7 +268,6 @@
                              Value="{Binding Progress}"
                              Foreground="{DynamicResource InkBrush}" />
                 <TextBlock Text="{Binding ProgressText}"
-                           FontFamily="{StaticResource Plex}"
                            FontSize="13"
                            FontWeight="Medium"
                            Foreground="{DynamicResource InkBrush}" />
@@ -282,15 +278,15 @@
                         Spacing="16"
                         IsVisible="{Binding ShowStatus}">
                 <TextBlock Text="{Binding StatusText}"
+                           AutomationProperties.LiveSetting="Polite"
                            VerticalAlignment="Center"
-                           FontFamily="{StaticResource Plex}"
                            FontSize="14"
                            FontWeight="Bold"
                            Foreground="{DynamicResource SuccessBrush}"
                            IsVisible="{Binding StatusIsError, Converter={x:Static BoolConverters.Not}}" />
                 <TextBlock Text="{Binding StatusText}"
+                           AutomationProperties.LiveSetting="Polite"
                            VerticalAlignment="Center"
-                           FontFamily="{StaticResource Plex}"
                            FontSize="14"
                            FontWeight="Bold"
                            Foreground="{DynamicResource DangerBrush}"
@@ -306,7 +302,6 @@
                         <icons:MaterialIcon Kind="FolderOpen" Width="20" Height="20" />
                         <TextBlock Text="{x:Static s:L.OpenFolder}"
                                    VerticalAlignment="Center"
-                                   FontFamily="{StaticResource Plex}"
                                    FontSize="14"
                                    FontWeight="Bold" />
                     </StackPanel>
@@ -322,7 +317,6 @@
                         <icons:MaterialIcon Kind="AccountOff" Width="20" Height="20" />
                         <TextBlock Text="{x:Static s:L.SeparateNoPeople}"
                                    VerticalAlignment="Center"
-                                   FontFamily="{StaticResource Plex}"
                                    FontSize="14"
                                    FontWeight="Bold" />
                     </StackPanel>
@@ -333,7 +327,6 @@
         <TextBlock Grid.Row="3"
                    Margin="24,0,24,12"
                    Text="{x:Static s:L.Footer}"
-                   FontFamily="{StaticResource Plex}"
                    FontSize="12"
                    FontWeight="Medium"
                    Foreground="{DynamicResource MutedBrush}"

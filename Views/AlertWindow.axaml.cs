@@ -1,6 +1,6 @@
 using Avalonia.Controls;
+using Avalonia;
 using Avalonia.Interactivity;
-using Avalonia.Media;
 
 namespace FetchIt.Views;
 
@@ -17,9 +17,8 @@ public partial class AlertWindow : Window
         NativeWindowIcon.Bind(this);
         Eyebrow.Text = heading.ToUpperInvariant();
         Body.Text = message;
-        var key = isError ? "DangerBrush" : "SuccessBrush";
-        if (this.TryFindResource(key, out var brush) && brush is IBrush colored)
-            Eyebrow.Foreground = colored;
+        // Bound, not read once: here the window has no theme yet, so a lookup finds nothing.
+        Eyebrow.Bind(TextBlock.ForegroundProperty, this.GetResourceObservable(isError ? "DangerBrush" : "SuccessBrush"));
     }
 
     private void OnOkClick(object? sender, RoutedEventArgs e) => Close();

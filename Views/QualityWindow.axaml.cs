@@ -22,8 +22,6 @@ public partial class QualityWindow : Window
         NativeWindowIcon.Bind(this);
         Body.Text = Services.L.Format("Pick a quality for “{0}”.", title);
 
-        var ink = ResolveBrush("InkBrush") ?? Brushes.White;
-
         foreach (var quality in qualities)
         {
             var text = new TextBlock
@@ -32,8 +30,7 @@ public partial class QualityWindow : Window
                 FontSize = 16,
                 FontWeight = FontWeight.Bold,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-                Foreground = ink
+                VerticalAlignment = VerticalAlignment.Center
             };
 
             var button = new Button
@@ -48,13 +45,6 @@ public partial class QualityWindow : Window
             button.Click += OnQualityClick;
             Choices.Children.Add(button);
         }
-    }
-
-    private IBrush? ResolveBrush(string key)
-    {
-        if (this.TryFindResource(key, out var value) && value is IBrush brush)
-            return brush;
-        return null;
     }
 
     private void OnQualityClick(object? sender, RoutedEventArgs e)

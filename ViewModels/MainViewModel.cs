@@ -328,13 +328,18 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        // The same file is replaced, with nothing to ask. A name taken from a title
-        // proves nothing, so that file keeps both copies unless the bytes match.
-        var duplicate = SaveClash.NamesIdentifyFiles(probe) ? DuplicateChoice.Overwrite : DuplicateChoice.KeepBoth;
+        var duplicate = ChoiceFor(probe);
         var target = SaveFolderFor(FolderPath, Url);
         var existing = SaveClash.ExistingNames(target, probe);
         if (existing.Count > 0)
             AppLog.Info($"already saved: {existing.Count} of {probe.FileCount}; choice {duplicate}");
+        if (IsAllSaved(probe, existing.Count, duplicate))
+        {
+            _savedFolder = target;
+            ShowOk(L.Format("Already saved in {0}.", FolderDisplay(target)));
+            OfferSeparate(probe);
+            return;
+        }
 
         IsBusy = true;
         HideStatus();
@@ -371,6 +376,18 @@ public partial class MainViewModel : ObservableObject
             IsBusy = false;
         }
     }
+
+    /// <summary>
+    /// A name from the site's own id is the same file, so a saved one is not
+    /// fetched again: a repeat run of a big profile only brings what is new. A
+    /// name taken from a title proves nothing, so that file keeps both copies
+    /// unless the bytes match.
+    /// </summary>
+    internal static DuplicateChoice ChoiceFor(MediaProbe probe)
+        => SaveClash.NamesIdentifyFiles(probe) ? DuplicateChoice.Skip : DuplicateChoice.KeepBoth;
+
+    internal static bool IsAllSaved(MediaProbe probe, int existing, DuplicateChoice duplicate)
+        => duplicate == DuplicateChoice.Skip && probe.Items.Count > 0 && existing >= probe.Items.Count;
 
     /// <summary>Asks about videos when the list has both kinds. Null means the user cancelled.</summary>
     internal async Task<MediaProbe?> ChooseMediaAsync(MediaProbe probe, string url)
@@ -581,6 +598,9 @@ public partial class MainViewModel : ObservableObject
 
     private void ClearResult()
     {
+        // Every key typed in the link box lands here, mostly with nothing to clear.
+        if (Probe is null && !HasPreview && PreviewCards.Count == 0)
+            return;
         Probe = null;
         Title = "";
         Summary = "";
@@ -598,7 +618,6 @@ public partial class MainViewModel : ObservableObject
         foreach (var item in items)
             PreviewCards.Add(new PreviewCard(item, tiles));
         PreviewRows = PreviewRow.Split(PreviewCards, _columns);
-        NotifyPreviewLayout();
     }
 
     public void FitPreview(double viewportWidth, double viewportHeight)

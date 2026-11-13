@@ -1,3 +1,4 @@
+using System.Buffers;
 using FetchIt.Models;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
@@ -25,7 +26,8 @@ public sealed class PersonDetector : IDisposable
     private readonly InferenceSession _session;
     private readonly string _inputName;
 
-    private PersonDetector(string modelPath)
+    // One picture at a time: two at once measured no faster, the model already uses the cores.
+    internal PersonDetector(string modelPath)
     {
         using var options = new SessionOptions
         {
@@ -45,16 +47,39 @@ public sealed class PersonDetector : IDisposable
     }
 
     public PeopleCheck CheckImage(string path)
+        => PersonScore(path) switch
+        {
+            null => PeopleCheck.Unknown,
+            >= MinScore => PeopleCheck.HasPeople,
+            _ => PeopleCheck.NoPeople
+        };
+
+    /// <summary>The best person score, or null when the picture cannot be read.</summary>
+    internal float? PersonScore(string path)
     {
         using var bitmap = SKBitmap.Decode(path);
         if (bitmap is null)
-            return PeopleCheck.Unknown;
+            return null;
 
-        var input = new DenseTensor<float>(ToInput(bitmap), [1, 3, InputSize, InputSize]);
-        using var results = _session.Run([NamedOnnxValue.CreateFromTensor(_inputName, input)]);
-        var output = results.First().AsTensor<float>().ToArray();
-        return BestPersonScore(output) >= MinScore ? PeopleCheck.HasPeople : PeopleCheck.NoPeople;
+        // One picture needs 5 MB of input: rented, or thousands of pictures churn the large heap.
+        var buffer = ArrayPool<float>.Shared.Rent(InputLength);
+        try
+        {
+            FillInput(bitmap, buffer.AsSpan(0, InputLength));
+            var input = new DenseTensor<float>(buffer.AsMemory(0, InputLength), [1, 3, InputSize, InputSize]);
+            using var results = _session.Run([NamedOnnxValue.CreateFromTensor(_inputName, input)]);
+            var output = results.First().AsTensor<float>();
+            return output is DenseTensor<float> dense
+                ? BestPersonScore(dense.Buffer.Span)
+                : BestPersonScore(output.ToArray());
+        }
+        finally
+        {
+            ArrayPool<float>.Shared.Return(buffer);
+        }
     }
+
+    private const int InputLength = InputSize * InputSize * 3;
 
     /// <summary>
     /// The model takes raw 0-255 values in blue, green, red order, letterboxed
@@ -62,6 +87,13 @@ public sealed class PersonDetector : IDisposable
     /// so this order was measured on real photos.
     /// </summary>
     internal static float[] ToInput(SKBitmap bitmap)
+    {
+        var input = new float[InputLength];
+        FillInput(bitmap, input);
+        return input;
+    }
+
+    private static void FillInput(SKBitmap bitmap, Span<float> input)
     {
         var scale = Math.Min((float)InputSize / bitmap.Width, (float)InputSize / bitmap.Height);
         using var letterboxed = new SKBitmap(InputSize, InputSize, SKColorType.Bgra8888, SKAlphaType.Opaque);
@@ -77,15 +109,12 @@ public sealed class PersonDetector : IDisposable
 
         var pixels = letterboxed.GetPixelSpan();
         var area = InputSize * InputSize;
-        var input = new float[area * 3];
         for (var i = 0; i < area; i++)
         {
             input[i] = pixels[i * 4];
             input[area + i] = pixels[i * 4 + 1];
             input[area * 2 + i] = pixels[i * 4 + 2];
         }
-
-        return input;
     }
 
     /// <summary>Yes or no needs only the best box, so there is no box decoding or NMS.</summary>

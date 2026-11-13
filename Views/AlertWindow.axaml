@@ -24,14 +24,9 @@
                 Height="48"
                 MinWidth="120"
                 IsDefault="True"
+                IsCancel="True"
                 Click="OnOkClick">
-            <TextBlock Text="{x:Static s:L.Ok}"
-                       FontFamily="{StaticResource Plex}"
-                       FontSize="16"
-                       FontWeight="Bold"
-                       Foreground="{DynamicResource FetchTextBrush}"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center" />
+            <TextBlock Text="{x:Static s:L.Ok}" />
         </Button>
     </StackPanel>
 </Window>

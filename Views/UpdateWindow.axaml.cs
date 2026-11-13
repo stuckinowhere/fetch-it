@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using FetchIt.Services;
@@ -131,6 +132,16 @@ public partial class UpdateWindow : Window
     {
         if (!_busy)
             Close();
+    }
+
+    // Esc closes like every other dialog, but never in the middle of an install.
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.Key != Key.Escape || e.Handled || _busy)
+            return;
+        e.Handled = true;
+        Close();
     }
 
     private static string Short(string message)

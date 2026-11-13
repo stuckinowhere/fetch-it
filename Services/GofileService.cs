@@ -111,8 +111,9 @@ public sealed class GofileService
                 {
                     throw;
                 }
-                catch
+                catch (Exception ex)
                 {
+                    AppLog.Warn($"could not save {Path.GetFileName(job.Path)}: {ex.GetType().Name}: {ex.Message}");
                     failed.Add(job);
                 }
             }).ConfigureAwait(false);

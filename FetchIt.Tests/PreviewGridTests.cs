@@ -110,6 +110,64 @@ public class PreviewGridTests
         }, CancellationToken.None);
 
     [Fact]
+    public async Task Every_button_without_words_has_a_name_and_the_save_folder_is_shown()
+        => await Session.Dispatch(() =>
+        {
+            var viewModel = new MainViewModel();
+            var window = new MainWindow { DataContext = viewModel };
+            window.Show();
+            try
+            {
+                Settle(window);
+                var unnamed = window.GetVisualDescendants()
+                    .OfType<Button>()
+                    .Where(button => button.IsEffectivelyVisible)
+                    .Where(button => !button.GetVisualDescendants().OfType<TextBlock>().Any(text => !string.IsNullOrWhiteSpace(text.Text)))
+                    .Where(button => string.IsNullOrWhiteSpace(Avalonia.Automation.AutomationProperties.GetName(button)))
+                    .ToList();
+                Assert.Empty(unnamed);
+                Assert.Contains(
+                    window.GetVisualDescendants().OfType<TextBlock>(),
+                    text => text.IsEffectivelyVisible && text.Text == viewModel.FolderLabel);
+                Assert.False(string.IsNullOrWhiteSpace(
+                    Avalonia.Automation.AutomationProperties.GetName(window.GetVisualDescendants().OfType<TextBox>().Single())));
+            }
+            finally
+            {
+                window.Hide();
+            }
+        }, CancellationToken.None);
+
+    [Theory]
+    [InlineData("alert")]
+    [InlineData("quality")]
+    [InlineData("update")]
+    public async Task Escape_closes_the_dialog(string which)
+    {
+        var closed = await Session.Dispatch(() =>
+        {
+            var owner = new Window();
+            owner.Show();
+            Window dialog = which switch
+            {
+                "alert" => new AlertWindow("Error", "Something", true),
+                "quality" => new QualityWindow(),
+                _ => new UpdateWindow()
+            };
+            var isClosed = false;
+            dialog.Closed += (_, _) => isClosed = true;
+            _ = dialog.ShowDialog(owner);
+            Dispatcher.UIThread.RunJobs();
+            dialog.KeyPressQwerty(Avalonia.Input.PhysicalKey.Escape, Avalonia.Input.RawInputModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+            owner.Close();
+            return isClosed;
+        }, CancellationToken.None);
+
+        Assert.True(closed);
+    }
+
+    [Fact]
     public async Task A_new_column_count_keeps_every_tile()
         => await Session.Dispatch(() =>
         {

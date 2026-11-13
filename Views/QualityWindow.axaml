@@ -15,7 +15,7 @@
         <TextBlock Text="{x:Static s:L.Quality}"
                    FontSize="12"
                    FontWeight="Bold"
-                   Foreground="{DynamicResource SuccessBrush}" />
+                   Foreground="{DynamicResource MutedBrush}" />
         <TextBlock x:Name="Body"
                    FontSize="16"
                    FontWeight="Medium"
@@ -24,6 +24,7 @@
         <Button Classes="Flat"
                 HorizontalAlignment="Right"
                 Content="{x:Static s:L.Cancel}"
+                IsCancel="True"
                 Click="OnCancelClick" />
     </StackPanel>
 </Window>

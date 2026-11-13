@@ -4,6 +4,9 @@ namespace FetchIt.Services;
 
 public sealed class YtDlpService
 {
+    // A channel or a long playlist lists slowly. The window gives up a little later.
+    internal static readonly TimeSpan ReadLimit = TimeSpan.FromSeconds(30);
+
     public async Task<MediaProbe> ProbeAsync(
         string url,
         IProgress<FetchProgress>? progress,
@@ -29,7 +32,7 @@ public sealed class YtDlpService
         args.Add(url);
 
         var text = await ProcessRunner.RunTextAsync(
-            tools.YtDlp, args, cancellationToken, timeout: TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+            tools.YtDlp, args, cancellationToken, timeout: ReadLimit).ConfigureAwait(false);
         if (LooksLikeFailure(text))
         {
             AppLog.Warn($"yt-dlp probe failed for {AppLog.SafeUrl(url)}:\n{text}");

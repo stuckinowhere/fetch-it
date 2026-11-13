@@ -19,11 +19,14 @@ public static class PeopleSorter
     {
         var tools = await ToolBootstrapper.EnsureAsync(null, cancellationToken).ConfigureAwait(false);
         using var detector = await PersonDetector.LoadAsync(cancellationToken).ConfigureAwait(false);
+        // Controlled Folder Access can block ffmpeg in the save folder, so video frames go here.
+        using var staging = ToolStaging.Create();
+        var frame = Path.Combine(staging.Folder, "frame.jpg");
 
         return await MoveAsync(
             folder,
             names,
-            (path, ct) => CheckAsync(detector, tools, path, ct),
+            (path, ct) => CheckAsync(detector, tools, frame, path, ct),
             progress,
             cancellationToken).ConfigureAwait(false);
     }
@@ -85,22 +88,21 @@ public static class PeopleSorter
     private static Task<PeopleCheck> CheckAsync(
         PersonDetector detector,
         ToolPaths tools,
+        string frame,
         string path,
         CancellationToken cancellationToken)
         => SaveClash.IsVideoName(path)
-            ? CheckVideoAsync(detector, tools, path, cancellationToken)
+            ? CheckVideoAsync(detector, tools, frame, path, cancellationToken)
             : Task.Run(() => detector.CheckImage(path), cancellationToken);
 
     // A person in any sampled frame keeps the video.
     private static async Task<PeopleCheck> CheckVideoAsync(
         PersonDetector detector,
         ToolPaths tools,
+        string frame,
         string path,
         CancellationToken cancellationToken)
     {
-        // Controlled Folder Access can block ffmpeg in the save folder, so frames go to staging.
-        using var staging = ToolStaging.Create();
-        var frame = Path.Combine(staging.Folder, "frame.jpg");
         var ffmpeg = Path.Combine(tools.FfmpegDir, "ffmpeg.exe");
         var seconds = await ReadDurationAsync(tools, path, cancellationToken).ConfigureAwait(false);
 
