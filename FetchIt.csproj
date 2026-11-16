@@ -33,7 +33,7 @@
     <PackageReference Include="Avalonia" Version="12.1.4" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.4" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <PackageReference Include="Material.Avalonia" Version="3.20.0" />
+    <PackageReference Include="Material.Avalonia" Version="3.21.0" />
     <PackageReference Include="Material.Icons.Avalonia" Version="3.0.2" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.31.1" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
