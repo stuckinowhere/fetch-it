@@ -91,14 +91,21 @@ public sealed class MediaFetcher
     /// routes fetch the link again, so leaving videos out of the list would do nothing.
     /// </summary>
     internal static bool CanLeaveOutVideos(MediaProbe probe, string url)
+        => probe.ImageCount > 0
+           && probe.VideoCount > 0
+           && DownloadFollowsList(probe, url);
+
+    /// <summary>
+    /// True when Download saves the files of the list one by one, so a file
+    /// taken out of the list is not saved. Other routes fetch the link again.
+    /// </summary>
+    internal static bool DownloadFollowsList(MediaProbe probe, string url)
     {
         if (MediaRouter.TryParseHttpUrl(MediaRouter.CanonicalPublicUrl(url), out var uri)
             && (MediaRouter.IsKemono(uri) || MediaRouter.IsGofile(uri) || MediaRouter.IsOkRu(uri)))
             return false;
 
         return probe.Engine == EngineKind.GalleryDl
-               && probe.ImageCount > 0
-               && probe.VideoCount > 0
                && GalleryDlService.CanDownloadDirect(probe);
     }
 

@@ -62,6 +62,8 @@ public static class L
     public static string Download => T("Download");
     public static string OpenFolder => T("Open folder");
     public static string SeparateNoPeople => T("Set aside without people");
+    public static string SelectAll => T("Select all");
+    public static string SelectNone => T("Select none");
     public static string WithoutPeople => T("Without people");
     public static string Downloads => T("Downloads");
     public static string Footer => $"fetch it {AppVersion.Current.ToString(3)} · © 2026 stuckinowhere · MIT";
@@ -167,6 +169,9 @@ public static class L
         ["Finishing…"] = "Terminando…",
         ["Saved to {0}."] = "Guardado en {0}.",
         ["Already saved in {0}."] = "Ya guardado en {0}.",
+        ["{0} of {1} selected"] = "{0} de {1} seleccionados",
+        ["Select all"] = "Marcar todos",
+        ["Select none"] = "Desmarcar todos",
         ["The connection went quiet. Try again."] = "La conexión dejó de responder. Inténtalo de nuevo.",
         ["Link"] = "Enlace",
         ["Reading the whole profile… {0} files · {1}"] = "Leyendo perfil completo… {0} archivos · {1}",

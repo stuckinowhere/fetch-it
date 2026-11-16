@@ -98,6 +98,9 @@
             <Setter Property="HorizontalAlignment" Value="Center" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
+        <Style Selector="ToggleButton.tile:focus-visible /template/ Border#FocusRing">
+            <Setter Property="BorderBrush" Value="{DynamicResource InkBrush}" />
+        </Style>
         <Style Selector="Button.Flat">
             <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />
         </Style>

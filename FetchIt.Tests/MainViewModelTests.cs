@@ -59,6 +59,86 @@ public class MainViewModelTests
         Assert.Contains("120", vm.Summary);
     }
 
+    private static MediaProbe Listed(int files, EngineKind engine = EngineKind.GalleryDl) => new()
+    {
+        Title = "post",
+        Engine = engine,
+        ImageCount = files - 1,
+        VideoCount = 1,
+        Items = Enumerable.Range(0, files)
+            .Select(i => new MediaItem
+            {
+                Kind = i == 0 ? MediaKind.Video : MediaKind.Image,
+                Title = $"file {i}",
+                DownloadUrl = $"https://cdn.example/{i}.jpg",
+                SaveName = $"{i}.jpg"
+            })
+            .ToList()
+    };
+
+    [Fact]
+    public void Every_file_starts_selected_and_the_download_takes_only_the_marked_ones()
+    {
+        var vm = new MainViewModel { Url = "https://x.com/someone/status/1" };
+        var probe = Listed(5);
+        vm.ApplyProbe(probe);
+
+        Assert.True(vm.CanSelect);
+        Assert.Equal(5, vm.SelectedCount);
+        Assert.Same(probe, vm.SelectedProbe(probe));
+
+        vm.PreviewCards[0].IsSelected = false;
+        vm.PreviewCards[3].IsSelected = false;
+
+        Assert.Equal(3, vm.SelectedCount);
+        var chosen = vm.SelectedProbe(probe);
+        Assert.Equal(["file 1", "file 2", "file 4"], chosen.Items.Select(item => item.Title));
+        Assert.Equal(3, chosen.ImageCount);
+        Assert.Equal(0, chosen.VideoCount);
+        Assert.True(GalleryDlService.CanDownloadDirect(chosen));
+    }
+
+    [Fact]
+    public void Download_is_off_with_nothing_selected_and_back_on_with_select_all()
+    {
+        var vm = new MainViewModel { Url = "https://x.com/someone/status/1" };
+        vm.ApplyProbe(Listed(4));
+
+        vm.SelectNoneCommand.Execute(null);
+        Assert.Equal(0, vm.SelectedCount);
+        Assert.False(vm.CanDownload);
+
+        vm.SelectAllCommand.Execute(null);
+        Assert.Equal(4, vm.SelectedCount);
+        Assert.True(vm.CanDownload);
+    }
+
+    [Theory]
+    [InlineData("https://www.youtube.com/playlist?list=1", EngineKind.YtDlp, 4)]
+    [InlineData("https://gofile.io/d/abc", EngineKind.GalleryDl, 4)]
+    [InlineData("https://x.com/someone/status/1", EngineKind.GalleryDl, 1)]
+    public void No_selection_when_the_download_does_not_follow_the_list_or_has_one_file(string url, EngineKind engine, int files)
+    {
+        var vm = new MainViewModel { Url = url };
+        vm.ApplyProbe(Listed(files, engine));
+
+        Assert.False(vm.CanSelect);
+        Assert.True(vm.CanDownload);
+    }
+
+    [Fact]
+    public void A_new_link_starts_with_every_file_selected_again()
+    {
+        var vm = new MainViewModel { Url = "https://x.com/someone/status/1" };
+        vm.ApplyProbe(Listed(3));
+        vm.SelectNoneCommand.Execute(null);
+
+        vm.ApplyProbe(Listed(6));
+
+        Assert.Equal(6, vm.SelectedCount);
+        Assert.All(vm.PreviewCards, card => Assert.True(card.IsSelected));
+    }
+
     [Fact]
     public void Gallery_links_get_time_to_list_every_file()
     {

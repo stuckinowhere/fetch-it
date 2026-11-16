@@ -22,8 +22,13 @@ public sealed partial class PreviewCard : ObservableObject, IDisposable
 
     /// <param name="item">What to show.</param>
     /// <param name="tile">A small tile in a grid, which may hold thousands.</param>
-    public PreviewCard(MediaItem item, bool tile = false)
+    /// <param name="canSelect">The user can leave this file out of the download.</param>
+    /// <param name="selectionChanged">Called after the user marks or unmarks the file.</param>
+    public PreviewCard(MediaItem item, bool tile = false, bool canSelect = false, Action? selectionChanged = null)
     {
+        Item = item;
+        CanSelect = canSelect;
+        _selectionChanged = selectionChanged;
         _decodeWidth = tile ? 320 : 960;
         _tile = tile;
         _thumbnail = string.IsNullOrWhiteSpace(item.ThumbnailUrl) ? null : item.ThumbnailUrl;
@@ -35,6 +40,20 @@ public sealed partial class PreviewCard : ObservableObject, IDisposable
 
     public string Title { get; }
     public string Overlay { get; }
+    public MediaItem Item { get; }
+    public bool CanSelect { get; }
+
+    private readonly Action? _selectionChanged;
+
+    /// <summary>Every file starts marked: saving all of them is the usual case.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ImageOpacity))]
+    private bool _isSelected = true;
+
+    /// <summary>A file left out stays visible, but faded.</summary>
+    public double ImageOpacity => IsSelected ? 1 : 0.3;
+
+    partial void OnIsSelectedChanged(bool value) => _selectionChanged?.Invoke();
 
     [ObservableProperty] private Bitmap? _image;
     [ObservableProperty] private double _tileWidth = 320;
