@@ -80,6 +80,20 @@ public sealed class MediaProbe
         };
     }
 
+    /// <summary>The same list with only the given files, and counts that match.</summary>
+    public MediaProbe WithItems(IReadOnlyList<MediaItem> items) => new()
+    {
+        Title = Title,
+        Site = Site,
+        Duration = Duration,
+        VideoCount = items.Count(item => item.Kind == MediaKind.Video),
+        ImageCount = items.Count(item => item.Kind == MediaKind.Image),
+        Engine = Engine,
+        Items = items,
+        Qualities = Qualities,
+        IsPartial = IsPartial
+    };
+
     public string Summary
     {
         get

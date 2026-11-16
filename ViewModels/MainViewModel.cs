@@ -100,7 +100,59 @@ public partial class MainViewModel : ObservableObject
     public PreviewCard? Hero => PreviewCards.Count == 1 ? PreviewCards[0] : null;
     public string FetchLabel => IsProbing ? L.Stop : L.Fetch;
     public string DownloadLabel => IsBusy ? L.Stop : L.Download;
-    public bool CanDownload => HasPreview && Probe is not null && !IsProbing;
+    public bool CanDownload => HasPreview && Probe is not null && !IsProbing && (!CanSelect || SelectedCount > 0);
+
+    /// <summary>The list has several files and Download saves them one by one.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanDownload))]
+    private bool _canSelect;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanDownload))]
+    [NotifyPropertyChangedFor(nameof(SelectionText))]
+    private int _selectedCount;
+
+    public string SelectionText => L.Format("{0} of {1} selected", SelectedCount, PreviewCards.Count);
+
+    // Marking thousands of tiles counts once, not once for each tile.
+    private bool _countingPaused;
+
+    private void CountSelected()
+    {
+        if (!_countingPaused)
+            SelectedCount = PreviewCards.Count(card => card.IsSelected);
+    }
+
+    [RelayCommand]
+    private void SelectAll() => SetAllSelected(true);
+
+    [RelayCommand]
+    private void SelectNone() => SetAllSelected(false);
+
+    private void SetAllSelected(bool selected)
+    {
+        _countingPaused = true;
+        try
+        {
+            foreach (var card in PreviewCards)
+                card.IsSelected = selected;
+        }
+        finally
+        {
+            _countingPaused = false;
+        }
+        CountSelected();
+    }
+
+    /// <summary>The list with only the files the user left marked.</summary>
+    internal MediaProbe SelectedProbe(MediaProbe probe)
+    {
+        if (!CanSelect || PreviewCards.All(card => card.IsSelected))
+            return probe;
+
+        var marked = PreviewCards.Where(card => card.IsSelected).Select(card => card.Item).ToHashSet();
+        return probe.WithItems(probe.Items.Where(marked.Contains).ToList());
+    }
     public bool ShowOpenFolder => ShowStatus && !StatusIsError;
 
     partial void OnUrlChanged(string value)
@@ -292,7 +344,11 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        var probe = Probe!;
+        var probe = SelectedProbe(Probe!);
+        if (probe.Items.Count == 0)
+            return;
+        if (probe.Items.Count < Probe!.Items.Count)
+            AppLog.Info($"selected {probe.Items.Count} of {Probe.Items.Count} files");
         if (probe.Qualities.Count > 1)
         {
             if (Ui is null)
@@ -591,7 +647,7 @@ public partial class MainViewModel : ObservableObject
         Probe = probe;
         Title = probe.Title;
         Summary = probe.Summary;
-        ReplaceCards(probe.Items);
+        ReplaceCards(probe.Items, probe.Items.Count > 1 && MediaFetcher.DownloadFollowsList(probe, Url));
         HasPreview = PreviewCards.Count > 0;
         NotifyPreviewLayout();
     }
@@ -604,20 +660,23 @@ public partial class MainViewModel : ObservableObject
         Probe = null;
         Title = "";
         Summary = "";
-        ReplaceCards([]);
+        ReplaceCards([], canSelect: false);
         HasPreview = false;
         NotifyPreviewLayout();
     }
 
-    private void ReplaceCards(IReadOnlyList<MediaItem> items)
+    private void ReplaceCards(IReadOnlyList<MediaItem> items, bool canSelect)
     {
         foreach (var card in PreviewCards)
             card.Dispose();
         PreviewCards.Clear();
         var tiles = items.Count > 1;
         foreach (var item in items)
-            PreviewCards.Add(new PreviewCard(item, tiles));
+            PreviewCards.Add(new PreviewCard(item, tiles, canSelect, CountSelected));
         PreviewRows = PreviewRow.Split(PreviewCards, _columns);
+        CanSelect = canSelect;
+        SelectedCount = PreviewCards.Count;
+        OnPropertyChanged(nameof(SelectionText));
     }
 
     public void FitPreview(double viewportWidth, double viewportHeight)

@@ -167,6 +167,86 @@ public class PreviewGridTests
         Assert.True(closed);
     }
 
+    internal static MediaProbe Post(int files) => new()
+    {
+        Title = "post",
+        Site = "X",
+        Engine = EngineKind.GalleryDl,
+        ImageCount = files,
+        Items = Enumerable.Range(0, files)
+            .Select(i => new MediaItem
+            {
+                Kind = MediaKind.Image,
+                Title = $"tile {i}",
+                DownloadUrl = $"https://cdn.example/{i}.jpg",
+                SaveName = $"{i}.jpg"
+            })
+            .ToList()
+    };
+
+    [Fact]
+    public async Task A_tile_marks_and_unmarks_its_file_and_the_count_follows()
+        => await Session.Dispatch(() =>
+        {
+            var viewModel = new MainViewModel { Url = "https://x.com/someone/status/1" };
+            var window = new MainWindow { DataContext = viewModel };
+            window.Show();
+            try
+            {
+                viewModel.ApplyProbe(Post(5));
+                Settle(window);
+
+                var tiles = window.GetVisualDescendants()
+                    .OfType<Avalonia.Controls.Primitives.ToggleButton>()
+                    .Where(tile => tile.DataContext is PreviewCard)
+                    .ToList();
+                Assert.Equal(5, tiles.Count);
+                Assert.All(tiles, tile => Assert.True(tile.IsChecked));
+                Assert.All(tiles, tile => Assert.False(string.IsNullOrWhiteSpace(
+                    Avalonia.Automation.AutomationProperties.GetName(tile))));
+
+                tiles[1].IsChecked = false;
+                Settle(window);
+
+                Assert.False(viewModel.PreviewCards[1].IsSelected);
+                Assert.Equal(4, viewModel.SelectedCount);
+                Assert.Contains(
+                    window.GetVisualDescendants().OfType<TextBlock>(),
+                    text => text.IsEffectivelyVisible && text.Text == viewModel.SelectionText);
+            }
+            finally
+            {
+                window.Hide();
+            }
+        }, CancellationToken.None);
+
+    [Fact]
+    public async Task A_list_that_cannot_be_narrowed_shows_no_selection()
+        => await Session.Dispatch(() =>
+        {
+            var viewModel = new MainViewModel();
+            var window = new MainWindow { DataContext = viewModel };
+            window.Show();
+            try
+            {
+                viewModel.ApplyProbe(Profile(5));
+                Settle(window);
+
+                Assert.DoesNotContain(
+                    window.GetVisualDescendants().OfType<TextBlock>(),
+                    text => text.IsEffectivelyVisible && text.Text == viewModel.SelectionText);
+                Assert.All(
+                    window.GetVisualDescendants()
+                        .OfType<Avalonia.Controls.Primitives.ToggleButton>()
+                        .Where(tile => tile.DataContext is PreviewCard),
+                    tile => Assert.False(tile.IsHitTestVisible));
+            }
+            finally
+            {
+                window.Hide();
+            }
+        }, CancellationToken.None);
+
     [Fact]
     public async Task A_new_column_count_keeps_every_tile()
         => await Session.Dispatch(() =>

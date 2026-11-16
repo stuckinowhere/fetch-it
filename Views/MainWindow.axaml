@@ -184,8 +184,27 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:PreviewCard">
+                                    <!-- The whole tile marks or unmarks its file. -->
+                                    <ToggleButton Classes="tile"
+                                                  Margin="0,0,16,16"
+                                                  Padding="0"
+                                                  IsChecked="{Binding IsSelected}"
+                                                  IsHitTestVisible="{Binding CanSelect}"
+                                                  Focusable="{Binding CanSelect}"
+                                                  Cursor="Hand"
+                                                  AutomationProperties.Name="{Binding Title}">
+                                        <ToggleButton.Template>
+                                            <ControlTemplate>
+                                                <Panel>
+                                                    <ContentPresenter Content="{TemplateBinding Content}" />
+                                                    <Border Name="FocusRing"
+                                                            IsHitTestVisible="False"
+                                                            BorderThickness="3"
+                                                            CornerRadius="4" />
+                                                </Panel>
+                                            </ControlTemplate>
+                                        </ToggleButton.Template>
                                     <controls:Card Width="{Binding TileWidth}"
-                                                   Margin="0,0,16,16"
                                                    Padding="0"
                                                    Background="{DynamicResource CardBrush}"
                                                    AttachedToVisualTree="OnTileShown"
@@ -196,7 +215,36 @@
                                                 <Border Background="{DynamicResource TileBrush}" />
                                                 <Image Source="{Binding Image}"
                                                        Stretch="UniformToFill"
+                                                       Opacity="{Binding ImageOpacity}"
                                                        IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                <Panel HorizontalAlignment="Right"
+                                                       VerticalAlignment="Top"
+                                                       Margin="8"
+                                                       Width="28"
+                                                       Height="28"
+                                                       IsVisible="{Binding CanSelect}">
+                                                    <!-- Black and white rings, so the mark reads on any photo in both themes. -->
+                                                    <Border CornerRadius="14"
+                                                            BorderBrush="#CC000000"
+                                                            BorderThickness="1" />
+                                                    <Border CornerRadius="13"
+                                                            Margin="1"
+                                                            Background="#33000000"
+                                                            BorderBrush="White"
+                                                            BorderThickness="2"
+                                                            IsVisible="{Binding IsSelected, Converter={x:Static BoolConverters.Not}}" />
+                                                    <Border CornerRadius="13"
+                                                            Margin="1"
+                                                            Background="Black"
+                                                            BorderBrush="White"
+                                                            BorderThickness="2"
+                                                            IsVisible="{Binding IsSelected}">
+                                                        <icons:MaterialIcon Kind="Check"
+                                                                            Width="18"
+                                                                            Height="18"
+                                                                            Foreground="White" />
+                                                    </Border>
+                                                </Panel>
                                                 <Border HorizontalAlignment="Left"
                                                         VerticalAlignment="Bottom"
                                                         Margin="8"
@@ -218,6 +266,7 @@
                                                        FontWeight="Medium" />
                                         </StackPanel>
                                     </controls:Card>
+                                    </ToggleButton>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                                 </ItemsControl>
@@ -244,6 +293,37 @@
                                FontWeight="Medium"
                                Foreground="{DynamicResource MutedBrush}"
                                TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="4"
+                                Margin="0,4,0,0"
+                                IsVisible="{Binding CanSelect}">
+                        <TextBlock Text="{Binding SelectionText}"
+                                   AutomationProperties.LiveSetting="Polite"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"
+                                   FontSize="14"
+                                   FontWeight="Bold" />
+                        <Button Classes="Flat"
+                                Command="{Binding SelectAllCommand}"
+                                Cursor="Hand"
+                                Padding="12,0"
+                                Height="36">
+                            <TextBlock Text="{x:Static s:L.SelectAll}"
+                                       VerticalAlignment="Center"
+                                       FontSize="14"
+                                       FontWeight="Bold" />
+                        </Button>
+                        <Button Classes="Flat"
+                                Command="{Binding SelectNoneCommand}"
+                                Cursor="Hand"
+                                Padding="12,0"
+                                Height="36">
+                            <TextBlock Text="{x:Static s:L.SelectNone}"
+                                       VerticalAlignment="Center"
+                                       FontSize="14"
+                                       FontWeight="Bold" />
+                        </Button>
+                    </StackPanel>
                 </StackPanel>
                 <Button Grid.Column="1"
                         Classes="fetch"
